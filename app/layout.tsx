@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "バイトチェッカー",
-  description: "アルバイトのシフトや収入を管理するアプリ",
+  description: "アルバイト先のレビューを投稿・閲覧できるサービス",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
