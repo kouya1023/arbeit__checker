@@ -3,13 +3,23 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+const ALLOWED_EMAIL_DOMAIN = "@cs.u-ryukyu.ac.jp";
+
 export default function Signup() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!email.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+      setError(`${ALLOWED_EMAIL_DOMAIN} のメールアドレスのみ登録できます。`);
+      return;
+    }
+
+    setError("");
     router.push("/");
   }
 
@@ -34,10 +44,17 @@ export default function Signup() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={`taro${ALLOWED_EMAIL_DOMAIN}`}
               className="h-11 rounded-lg border border-black/[.08] bg-white px-3 text-black outline-none focus:border-black/30 dark:border-white/[.145] dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-white/40"
             />
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {ALLOWED_EMAIL_DOMAIN} のメールアドレスのみ登録できます。
+            </p>
           </div>
+
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <label
