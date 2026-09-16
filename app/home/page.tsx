@@ -1,22 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Outfit } from "next/font/google";
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
-import { supabase } from "@/lib/supabase";
-
-const outfit = Outfit({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
-
-const THEME = {
-  "--background": "#f5f7fb",
-  "--foreground": "#0f2a4a",
-  "--card": "#ffffff",
-  "--primary": "#2f6fed",
-  "--secondary": "#0f2a4a",
-  "--accent": "#ffce00",
-  "--muted-foreground": "#64748b",
-  "--border": "#e2e8f0",
-} as CSSProperties;
+import { useState, type FormEvent } from "react";
+import { THEME, outfit } from "../theme";
 
 type Company = { name: string; rating: number };
 
@@ -78,14 +64,13 @@ export default function Home() {
       <div className="bg-[color:var(--secondary)]">
         {/* Header */}
         <header className="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between">
-          <div className="relative w-16 h-16 rounded-full overflow-hidden bg-white ring-2 ring-white/30 shrink-0">
-            <Image
-              src="/logo/Arbeit_checker_logo.png"
-              alt="バイトチェッカー"
-              fill
-              className="object-cover"
-            />
-          </div>
+          <Image
+            src="/logo/Arbeit_checker_logo.png"
+            alt="バイトチェッカー"
+            width={64}
+            height={64}
+            className="shrink-0"
+          />
           <button
             onClick={() => setShowWriteForm(true)}
             className="bg-[color:var(--primary)] text-white text-sm font-bold px-4 py-1.5 rounded-full hover:opacity-90 transition-opacity"
@@ -94,18 +79,9 @@ export default function Home() {
           </button>
         </header>
 
-        {/* Hero */}
-        <section className="text-white pt-6 pb-16">
+        {/* Search */}
+        <section className="pb-10">
           <div className="max-w-6xl mx-auto px-5">
-            <h1 className="text-4xl sm:text-5xl font-black leading-tight mb-4">
-              バイト選びは
-              <br />
-              <span style={{ color: "var(--accent)" }}>口コミ</span>から始めよう。
-            </h1>
-            <p className="text-white/70 text-base leading-relaxed mb-8 font-medium">
-              在職中の学生が書いたリアルな声。給与・雰囲気・シフトを事前にチェック。
-            </p>
-
             <form onSubmit={handleSearchSubmit} className="flex gap-2 bg-white rounded-2xl p-2 shadow-lg max-w-xl">
               <input
                 type="text"
