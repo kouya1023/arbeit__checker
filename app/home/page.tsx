@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { Outfit } from "next/font/google";
-import { useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { supabase } from "@/lib/supabase";
 
 const outfit = Outfit({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
@@ -17,28 +18,7 @@ const THEME = {
   "--border": "#e2e8f0",
 } as CSSProperties;
 
-const COMPANIES = [
-  { name: "スターバックス", rating: 4.2 },
-  { name: "ユニクロ", rating: 3.9 },
-  { name: "ファミリーマート", rating: 3.5 },
-  { name: "家庭教師のトライ", rating: 4.5 },
-  { name: "マクドナルド", rating: 4.0 },
-  { name: "TSUTAYA", rating: 3.3 },
-  { name: "すき家", rating: 3.6 },
-  { name: "ドミノ・ピザ", rating: 3.8 },
-  { name: "ニトリ", rating: 3.7 },
-  { name: "塾講師（個別指導塾）", rating: 4.3 },
-  { name: "焼肉きんぐ", rating: 3.9 },
-  { name: "GU", rating: 3.8 },
-  { name: "ローソン", rating: 3.6 },
-  { name: "くら寿司", rating: 3.7 },
-  { name: "カラオケまねきねこ", rating: 3.4 },
-  { name: "古本市場（BOOKOFF）", rating: 3.5 },
-  { name: "セブン-イレブン", rating: 3.5 },
-  { name: "スシロー", rating: 3.8 },
-  { name: "ABCマート", rating: 3.6 },
-  { name: "ドトールコーヒー", rating: 4.0 },
-];
+type Company = { name: string; rating: number };
 
 function StarRating({ value }: { value: number }) {
   const stars = [1, 2, 3, 4, 5];
@@ -56,8 +36,35 @@ function StarRating({ value }: { value: number }) {
 export default function Home() {
   const [search, setSearch] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = COMPANIES.filter((c) => search === "" || c.name.includes(search));
+  useEffect(() => {
+    async function fetchReviews() {
+      const { data, error } = await supabase
+        .from("review")
+        .select("store_name, stage_evaluation");
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+      console.log("Fetched reviews:", data);
+
+      const rows = (data ?? []).map((row) => ({
+        name: row.store_name as string,
+        rating: Number(row.stage_evaluation) || 0,
+      }));
+      setCompanies(rows);
+      setLoading(false);
+    }
+
+    fetchReviews();
+  }, []);
+
+  const filtered = companies.filter((c) => search === "" || c.name.includes(search));
 
   function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -120,9 +127,21 @@ export default function Home() {
 
       {/* Review Cards */}
       <section className="max-w-6xl mx-auto px-5 py-10">
-        <p className="text-sm text-[color:var(--muted-foreground)] mb-5">{filtered.length}件の口コミ</p>
+        <p className="text-sm text-[color:var(--muted-foreground)] mb-5">
+          {loading ? "読み込み中..." : `${filtered.length}件の口コミ`}
+        </p>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-16 text-[color:var(--muted-foreground)]">
+            <p className="font-semibold">読み込み中...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-16 text-[color:var(--muted-foreground)]">
+            <p className="text-4xl mb-3">⚠️</p>
+            <p className="font-semibold">データの取得に失敗しました</p>
+            <p className="text-sm mt-1">{error}</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-[color:var(--muted-foreground)]">
             <p className="text-4xl mb-3">🔍</p>
             <p className="font-semibold">該当する口コミが見つかりませんでした</p>
