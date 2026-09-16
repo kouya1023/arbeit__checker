@@ -27,27 +27,32 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchReviews() {
-      const { data, error } = await supabase
-        .from("review")
-        .select("store_name, stage_evaluation");
+  const [storeName, setStoreName] = useState("");
+  const [rating, setRating] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-      console.log("Fetched reviews:", data);
+  async function fetchReviews() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("review")
+      .select("store_name, stage_evaluation");
 
-      const rows = (data ?? []).map((row) => ({
-        name: row.store_name as string,
-        rating: Number(row.stage_evaluation) || 0,
-      }));
-      setCompanies(rows);
+    if (error) {
+      setError(error.message);
       setLoading(false);
+      return;
     }
 
+    const rows = (data ?? []).map((row) => ({
+      name: row.store_name as string,
+      rating: Number(row.stage_evaluation) || 0,
+    }));
+    setCompanies(rows);
+    setLoading(false);
+  }
+
+  useEffect(() => {
     fetchReviews();
   }, []);
 
@@ -55,6 +60,38 @@ export default function Home() {
 
   function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+  }
+
+  function closeWriteForm() {
+    setShowWriteForm(false);
+    setStoreName("");
+    setRating(0);
+    setSubmitError(null);
+  }
+
+  async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!storeName || rating === 0) {
+      setSubmitError("企業名と評価を入力してください。");
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    const { error } = await supabase
+      .from("review")
+      .insert({ store_name: storeName, stage_evaluation: rating });
+
+    setSubmitting(false);
+
+    if (error) {
+      setSubmitError(error.message);
+      return;
+    }
+
+    closeWriteForm();
+    fetchReviews();
   }
 
   return (
@@ -145,17 +182,18 @@ export default function Home() {
       {showWriteForm && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowWriteForm(false)}
+          onClick={closeWriteForm}
         >
           <div
             className="bg-[color:var(--card)] rounded-3xl w-full max-w-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6">
+            <form onSubmit={handleWriteSubmit} className="p-6">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-black text-xl">口コミを投稿する</h3>
                 <button
-                  onClick={() => setShowWriteForm(false)}
+                  type="button"
+                  onClick={closeWriteForm}
                   className="w-8 h-8 rounded-full bg-[color:var(--background)] flex items-center justify-center text-sm font-bold hover:bg-[color:var(--border)] transition-colors"
                 >
                   ✕
@@ -165,6 +203,8 @@ export default function Home() {
                 <input
                   type="text"
                   placeholder="企業名 *"
+                  value={storeName}
+                  onChange={(e) => setStoreName(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
                 />
                 <div>
@@ -173,23 +213,26 @@ export default function Home() {
                     {[1, 2, 3, 4, 5].map((s) => (
                       <button
                         key={s}
-                        className="text-2xl text-[color:var(--border)] hover:text-[color:var(--accent)] transition-colors"
+                        type="button"
+                        onClick={() => setRating(s)}
+                        className="text-2xl transition-colors"
+                        style={{ color: s <= rating ? "#ffce00" : "var(--border)" }}
                       >
                         ★
                       </button>
                     ))}
                   </div>
                 </div>
-                <textarea
-                  rows={4}
-                  placeholder="口コミ（給与・雰囲気・シフトなどリアルな情報を） *"
-                  className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
-                />
-                <button className="w-full bg-[color:var(--primary)] text-white font-black py-3.5 rounded-xl hover:opacity-90 transition-opacity">
-                  投稿する
+                {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-[color:var(--primary)] text-white font-black py-3.5 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60"
+                >
+                  {submitting ? "投稿中..." : "投稿する"}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
