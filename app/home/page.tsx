@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent,useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
 
 type Company = { name: string; rating: number };
