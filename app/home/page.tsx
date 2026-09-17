@@ -8,10 +8,11 @@ import { THEME, outfit } from "../theme";
 import StarRating from "../components/StarRating";
 
 type Store = { id: number; name: string; average: number };
+type Department = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
 
-function normalizeStoreNameForSearch(value: string) {
+function normalizeValueForSearch(value: string) {
   return value.replace(/\s/g, "").trim();
 }
 
@@ -25,6 +26,11 @@ export default function Home() {
   const [storeName, setStoreName] = useState("");
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [isStoreInputFocused, setIsStoreInputFocused] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentName, setDepartmentName] = useState("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null);
+  const [isDepartmentInputFocused, setIsDepartmentInputFocused] = useState(false);
+  const [departmentLoadError, setDepartmentLoadError] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [numberOfPeople, setNumberOfPeople] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -55,16 +61,30 @@ export default function Home() {
 
   useEffect(() => {
     async function loadInitialStores() {
-      const { data, error } = await supabase.from("store").select("id, name");
+      const [storesResponse, departmentsResponse] = await Promise.all([
+        supabase.from("store").select("id, name"),
+        supabase.from("department").select("id, department").order("department"),
+      ]);
 
-      if (error) {
-        setError(error.message);
+      if (storesResponse.error) {
+        setError(storesResponse.error.message);
       } else {
         setStores(
-          (data ?? []).map((row) => ({
+          (storesResponse.data ?? []).map((row) => ({
             id: Number(row.id),
             name: row.name as string,
             average: 0,
+          })),
+        );
+      }
+
+      if (departmentsResponse.error) {
+        setDepartmentLoadError(departmentsResponse.error.message);
+      } else {
+        setDepartments(
+          (departmentsResponse.data ?? []).map((row) => ({
+            id: Number(row.id),
+            name: row.department as string,
           })),
         );
       }
@@ -76,10 +96,17 @@ export default function Home() {
 
   const filtered = stores.filter((s) => search === "" || s.name.includes(search));
   const normalizedStoreName = storeName.trim();
-  const normalizedStoreSearchTerm = normalizeStoreNameForSearch(storeName);
+  const normalizedStoreSearchTerm = normalizeValueForSearch(storeName);
   const storeSuggestions = stores
     .filter((store) =>
-      normalizeStoreNameForSearch(store.name).includes(normalizedStoreSearchTerm),
+      normalizeValueForSearch(store.name).includes(normalizedStoreSearchTerm),
+    )
+    .slice(0, 5);
+  const normalizedDepartmentName = departmentName.trim();
+  const normalizedDepartmentSearchTerm = normalizeValueForSearch(departmentName);
+  const departmentSuggestions = departments
+    .filter((department) =>
+      normalizeValueForSearch(department.name).includes(normalizedDepartmentSearchTerm),
     )
     .slice(0, 5);
 
@@ -92,6 +119,9 @@ export default function Home() {
     setStoreName("");
     setSelectedStoreId(null);
     setIsStoreInputFocused(false);
+    setDepartmentName("");
+    setSelectedDepartmentId(null);
+    setIsDepartmentInputFocused(false);
     setRating(0);
     setNumberOfPeople("");
     setJobDescription("");
@@ -110,9 +140,20 @@ export default function Home() {
     setIsStoreInputFocused(false);
   }
 
+  function handleDepartmentNameChange(value: string) {
+    setDepartmentName(value);
+    setSelectedDepartmentId(null);
+  }
+
+  function selectDepartment(department: Department) {
+    setDepartmentName(department.name);
+    setSelectedDepartmentId(department.id);
+    setIsDepartmentInputFocused(false);
+  }
+
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!normalizedStoreName || rating === 0 || !numberOfPeople || !jobDescription) {
+    if (!normalizedStoreName || rating === 0 || !numberOfPeople || !jobGap) {
       setSubmitError("企業名・総合評価・人数・求人情報とのギャップを入力してください。");
       return;
     }
@@ -122,11 +163,12 @@ export default function Home() {
 
     let storeId = selectedStoreId;
     let storeNameForReview = normalizedStoreName;
+    let departmentId = selectedDepartmentId;
 
     if (storeId === null) {
       const matchingStore = stores.find(
         (store) =>
-          normalizeStoreNameForSearch(store.name) === normalizedStoreSearchTerm,
+          normalizeValueForSearch(store.name) === normalizedStoreSearchTerm,
       );
 
       if (matchingStore) {
@@ -149,6 +191,33 @@ export default function Home() {
       }
     }
 
+    if (normalizedDepartmentName && departmentId === null) {
+      const matchingDepartment = departments.find(
+        (department) =>
+          normalizeValueForSearch(department.name) === normalizedDepartmentSearchTerm,
+      );
+
+      if (matchingDepartment) {
+        departmentId = matchingDepartment.id;
+      } else {
+        const { data: createdDepartment, error: createDepartmentError } = await supabase
+          .from("department")
+          .insert({ department: normalizedDepartmentName })
+          .select("id")
+          .maybeSingle();
+
+        if (createDepartmentError || !createdDepartment) {
+          setSubmitting(false);
+          setSubmitError(
+            createDepartmentError?.message ?? "部署の登録後にIDを取得できませんでした。",
+          );
+          return;
+        }
+
+        departmentId = Number(createdDepartment.id);
+      }
+    }
+
     const { error } = await supabase.from("review").insert({
       store_id: storeId,
       store_name: storeNameForReview,
@@ -156,6 +225,7 @@ export default function Home() {
       number_of_people: numberOfPeople,
       job_description: jobDescription || null,
       job_gap: jobGap,
+      department_id: departmentId,
     });
 
     setSubmitting(false);
@@ -319,6 +389,51 @@ export default function Home() {
                       候補にない場合は、新しい店舗として登録されます。
                     </p>
                   ) : null}
+                </div>
+                <div className="relative">
+                  <label
+                    htmlFor="department-name"
+                    className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
+                  >
+                    部署（任意）
+                  </label>
+                  <input
+                    id="department-name"
+                    type="text"
+                    placeholder="例: キッチン、ホール"
+                    value={departmentName}
+                    onChange={(e) => handleDepartmentNameChange(e.target.value)}
+                    onFocus={() => setIsDepartmentInputFocused(true)}
+                    onBlur={() => setIsDepartmentInputFocused(false)}
+                    autoComplete="off"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                  />
+                  {isDepartmentInputFocused && normalizedDepartmentName && departmentSuggestions.length > 0 && (
+                    <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[color:var(--border)] bg-white shadow-lg">
+                      {departmentSuggestions.map((department) => (
+                        <li key={department.id}>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectDepartment(department)}
+                            className="w-full px-4 py-3 text-left text-sm font-medium hover:bg-[color:var(--background)]"
+                          >
+                            {department.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {selectedDepartmentId !== null ? (
+                    <p className="mt-2 text-xs text-emerald-700">部署を選択済みです。</p>
+                  ) : normalizedDepartmentName ? (
+                    <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">
+                      候補にない場合は、新しい部署として登録されます。
+                    </p>
+                  ) : null}
+                  {departmentLoadError && (
+                    <p className="mt-2 text-xs text-red-600">部署候補の取得に失敗しました: {departmentLoadError}</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
