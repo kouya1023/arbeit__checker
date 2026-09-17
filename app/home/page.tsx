@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
-import StarRating from "../components/StarRating";
 
-type Store = { id: number; name: string; average: number };
 type Department = { id: number; name: string };
+type Store = { id: number; name: string; reviewCount: number };
+type Municipality = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
 
@@ -23,6 +23,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+
   const [storeName, setStoreName] = useState("");
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [isStoreInputFocused, setIsStoreInputFocused] = useState(false);
@@ -31,6 +33,7 @@ export default function Home() {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null);
   const [isDepartmentInputFocused, setIsDepartmentInputFocused] = useState(false);
   const [departmentLoadError, setDepartmentLoadError] = useState<string | null>(null);
+  const [municipalityId, setMunicipalityId] = useState("");
   const [rating, setRating] = useState(0);
   const [numberOfPeople, setNumberOfPeople] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -40,26 +43,35 @@ export default function Home() {
 
   async function fetchStores() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("store")
-      .select("id, name");
 
-    if (error) {
-      setError(error.message);
+    const [storeResult, reviewResult] = await Promise.all([
+      supabase.from("store").select("id, name"),
+      supabase.from("review").select("store_id"),
+    ]);
+
+    if (storeResult.error) {
+      setError(storeResult.error.message);
       setLoading(false);
       return;
     }
 
-    const rows = (data ?? []).map((row) => ({
-      id: row.id as number,
+    const countByStoreId = new Map<number, number>();
+    for (const row of reviewResult.data ?? []) {
+      const id = Number(row.store_id);
+      countByStoreId.set(id, (countByStoreId.get(id) ?? 0) + 1);
+    }
+
+    const rows = (storeResult.data ?? []).map((row) => ({
+      id: Number(row.id),
       name: row.name as string,
-      average: 0,
+      reviewCount: countByStoreId.get(Number(row.id)) ?? 0,
     }));
     setStores(rows);
     setLoading(false);
   }
 
   useEffect(() => {
+    fetchStores();
     async function loadInitialStores() {
       const [storesResponse, departmentsResponse] = await Promise.all([
         supabase.from("store").select("id, name"),
@@ -91,7 +103,22 @@ export default function Home() {
       setLoading(false);
     }
 
+    async function loadMunicipalities() {
+      const { data } = await supabase
+        .from("municipality")
+        .select("id, munisipality")
+        .order("id");
+
+      setMunicipalities(
+        (data ?? []).map((row) => ({
+          id: Number(row.id),
+          name: row.munisipality as string,
+        })),
+      );
+    }
+
     void loadInitialStores();
+    void loadMunicipalities();
   }, []);
 
   const filtered = stores.filter((s) => search === "" || s.name.includes(search));
@@ -122,6 +149,7 @@ export default function Home() {
     setDepartmentName("");
     setSelectedDepartmentId(null);
     setIsDepartmentInputFocused(false);
+    setMunicipalityId("");
     setRating(0);
     setNumberOfPeople("");
     setJobDescription("");
@@ -221,6 +249,7 @@ export default function Home() {
     const { error } = await supabase.from("review").insert({
       store_id: storeId,
       store_name: storeNameForReview,
+      munisipality_id: Number(municipalityId),
       stage_evaluation: rating,
       number_of_people: numberOfPeople,
       job_description: jobDescription || null,
@@ -314,12 +343,9 @@ export default function Home() {
                 className="block bg-[color:var(--card)] rounded-2xl p-5 border border-[color:var(--border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
               >
                 <p className="font-bold text-lg mb-2">{s.name}</p>
-                <div className="flex items-center gap-2">
-                  <StarRating value={s.average} />
-                  <span className="text-sm font-bold text-[color:var(--muted-foreground)]">
-                    {s.average.toFixed(1)}
-                  </span>
-                </div>
+                <p className="text-sm font-bold text-[color:var(--muted-foreground)]">
+                  {s.reviewCount}件の口コミ
+                </p>
               </Link>
             ))}
           </div>
@@ -434,6 +460,29 @@ export default function Home() {
                   {departmentLoadError && (
                     <p className="mt-2 text-xs text-red-600">部署候補の取得に失敗しました: {departmentLoadError}</p>
                   )}
+                </div>
+                <div>
+                  <label
+                    htmlFor="municipality"
+                    className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
+                  >
+                    市町村 *
+                  </label>
+                  <select
+                    id="municipality"
+                    value={municipalityId}
+                    onChange={(e) => setMunicipalityId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                  >
+                    <option value="" disabled>
+                      選択してください
+                    </option>
+                    {municipalities.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
