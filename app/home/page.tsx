@@ -1,46 +1,37 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
+import StarRating from "../components/StarRating";
 
-type Company = { name: string; rating: number };
-type StoreOption = { id: number; name: string };
+type Store = { id: number; name: string; average: number };
 
-function StarRating({ value }: { value: number }) {
-  const stars = [1, 2, 3, 4, 5];
-  return (
-    <span className="inline-flex gap-0.5">
-      {stars.map((s) => (
-        <span key={s} className="text-sm" style={{ color: s <= Math.round(value) ? "#ffce00" : "#e2e8f0" }}>
-          ★
-        </span>
-      ))}
-    </span>
-  );
-}
+const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
 
 export default function Home() {
   const [search, setSearch] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [storeName, setStoreName] = useState("");
-  const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [isStoreInputFocused, setIsStoreInputFocused] = useState(false);
-  const [storeLoadError, setStoreLoadError] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
+  const [numberOfPeople, setNumberOfPeople] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  async function fetchReviews() {
+  async function fetchStores() {
+    setLoading(true);
     const { data, error } = await supabase
-      .from("review")
-      .select("store_name, stage_evaluation");
+      .from("store")
+      .select("id, name");
 
     if (error) {
       setError(error.message);
@@ -49,50 +40,38 @@ export default function Home() {
     }
 
     const rows = (data ?? []).map((row) => ({
-      name: row.store_name as string,
-      rating: Number(row.stage_evaluation) || 0,
+      id: row.id as number,
+      name: row.name as string,
+      average: 0,
     }));
-    setCompanies(rows);
+    setStores(rows);
     setLoading(false);
   }
 
   useEffect(() => {
-    async function loadInitialData() {
-      const [reviewsResponse, storesResponse] = await Promise.all([
-        supabase.from("review").select("store_name, stage_evaluation"),
-        supabase.from("store").select("id, name").order("name"),
-      ]);
+    async function loadInitialStores() {
+      const { data, error } = await supabase.from("store").select("id, name");
 
-      if (reviewsResponse.error) {
-        setError(reviewsResponse.error.message);
+      if (error) {
+        setError(error.message);
       } else {
-        setCompanies(
-          (reviewsResponse.data ?? []).map((row) => ({
-            name: row.store_name as string,
-            rating: Number(row.stage_evaluation) || 0,
+        setStores(
+          (data ?? []).map((row) => ({
+            id: Number(row.id),
+            name: row.name as string,
+            average: 0,
           })),
         );
       }
       setLoading(false);
-
-      if (storesResponse.error) {
-        setStoreLoadError(storesResponse.error.message);
-      } else {
-        setStoreOptions(
-          (storesResponse.data ?? []).map((row) => ({
-            id: Number(row.id),
-            name: row.name as string,
-          })),
-        );
-      }
     }
 
-    void loadInitialData();
+    void loadInitialStores();
   }, []);
 
-  const filtered = companies.filter((c) => search === "" || c.name.includes(search));
+  const filtered = stores.filter((s) => search === "" || s.name.includes(search));
   const normalizedStoreName = storeName.trim();
-  const storeSuggestions = storeOptions
+  const storeSuggestions = stores
     .filter((store) => store.name.includes(normalizedStoreName))
     .slice(0, 5);
 
@@ -106,6 +85,8 @@ export default function Home() {
     setSelectedStoreId(null);
     setIsStoreInputFocused(false);
     setRating(0);
+    setNumberOfPeople("");
+    setJobDescription("");
     setSubmitError(null);
   }
 
@@ -114,7 +95,7 @@ export default function Home() {
     setSelectedStoreId(null);
   }
 
-  function selectStore(store: StoreOption) {
+  function selectStore(store: Store) {
     setStoreName(store.name);
     setSelectedStoreId(store.id);
     setIsStoreInputFocused(false);
@@ -122,8 +103,8 @@ export default function Home() {
 
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!normalizedStoreName || rating === 0) {
-      setSubmitError("企業名と評価を入力してください。");
+    if (!normalizedStoreName || rating === 0 || !numberOfPeople || !jobDescription) {
+      setSubmitError("すべての項目を入力してください。");
       return;
     }
 
@@ -168,6 +149,8 @@ export default function Home() {
       store_id: storeId,
       store_name: normalizedStoreName,
       stage_evaluation: rating,
+      number_of_people: numberOfPeople,
+      job_description: jobDescription,
     });
 
     setSubmitting(false);
@@ -178,7 +161,7 @@ export default function Home() {
     }
 
     closeWriteForm();
-    fetchReviews();
+    fetchStores();
   }
 
   return (
@@ -210,7 +193,7 @@ export default function Home() {
             <form onSubmit={handleSearchSubmit} className="flex gap-2 bg-white rounded-2xl p-2 shadow-lg max-w-xl">
               <input
                 type="text"
-                placeholder="企業名・職種で検索..."
+                placeholder="店舗名で検索..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="flex-1 px-3 py-2 text-[color:var(--foreground)] text-sm font-medium outline-none bg-transparent placeholder:text-[color:var(--muted-foreground)]"
@@ -226,10 +209,10 @@ export default function Home() {
         </section>
       </div>
 
-      {/* Review Cards */}
+      {/* Store Cards */}
       <section className="max-w-6xl mx-auto px-5 py-10">
         <p className="text-sm text-[color:var(--muted-foreground)] mb-5">
-          {loading ? "読み込み中..." : `${filtered.length}件の口コミ`}
+          {loading ? "読み込み中..." : `${filtered.length}件の店舗`}
         </p>
 
         {loading ? (
@@ -245,21 +228,24 @@ export default function Home() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-[color:var(--muted-foreground)]">
             <p className="text-4xl mb-3">🔍</p>
-            <p className="font-semibold">該当する口コミが見つかりませんでした</p>
+            <p className="font-semibold">該当する店舗が見つかりませんでした</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-            {filtered.map((c) => (
-              <div
-                key={c.name}
-                className="bg-[color:var(--card)] rounded-2xl p-5 border border-[color:var(--border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
+            {filtered.map((s) => (
+              <Link
+                key={s.id}
+                href={`/home/${s.id}`}
+                className="block bg-[color:var(--card)] rounded-2xl p-5 border border-[color:var(--border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
               >
-                <p className="font-bold text-lg mb-2">{c.name}</p>
+                <p className="font-bold text-lg mb-2">{s.name}</p>
                 <div className="flex items-center gap-2">
-                  <StarRating value={c.rating} />
-                  <span className="text-sm font-bold text-[color:var(--muted-foreground)]">{c.rating}</span>
+                  <StarRating value={s.average} />
+                  <span className="text-sm font-bold text-[color:var(--muted-foreground)]">
+                    {s.average.toFixed(1)}
+                  </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -328,9 +314,6 @@ export default function Home() {
                       候補にない場合は、新しい店舗として登録されます。
                     </p>
                   ) : null}
-                  {storeLoadError && (
-                    <p className="mt-2 text-xs text-red-600">店舗候補の取得に失敗しました: {storeLoadError}</p>
-                  )}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
@@ -348,6 +331,30 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
+                <div>
+                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">大学生バイトの人数</p>
+                  <select
+                    value={numberOfPeople}
+                    onChange={(e) => setNumberOfPeople(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                  >
+                    <option value="" disabled>
+                      選択してください
+                    </option>
+                    {NUMBER_OF_PEOPLE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <textarea
+                  rows={3}
+                  placeholder="業務内容 *"
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
+                />
                 {submitError && <p className="text-sm text-red-600">{submitError}</p>}
                 <button
                   type="submit"
