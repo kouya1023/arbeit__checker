@@ -73,7 +73,7 @@ export default function ReviewDetailPage() {
               <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
               <div className="flex items-center gap-2">
                 <StarRating value={review.rating} />
-                <span className="font-bold">{review.rating}</span>
+                <span className="font-bold">{review.rating.toFixed(1)}</span>
               </div>
             </div>
             <div>
