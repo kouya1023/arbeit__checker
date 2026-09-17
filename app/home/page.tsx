@@ -194,7 +194,6 @@ export default function Home() {
     setSubmitError(null);
 
     let storeId = selectedStoreId;
-    let storeNameForReview = normalizedStoreName;
     let departmentId = selectedDepartmentId;
 
     if (storeId === null) {
@@ -205,7 +204,6 @@ export default function Home() {
 
       if (matchingStore) {
         storeId = matchingStore.id;
-        storeNameForReview = matchingStore.name;
       } else {
         const { data: createdStore, error: createStoreError } = await supabase
           .from("store")
@@ -252,7 +250,6 @@ export default function Home() {
 
     const { error } = await supabase.from("review").insert({
       store_id: storeId,
-      store_name: storeNameForReview,
       munisipality_id: Number(municipalityId),
       stage_evaluation: rating,
       number_of_people: numberOfPeople,
