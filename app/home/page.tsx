@@ -72,35 +72,23 @@ export default function Home() {
 
   useEffect(() => {
     fetchStores();
-    async function loadInitialStores() {
-      const [storesResponse, departmentsResponse] = await Promise.all([
-        supabase.from("store").select("id, name"),
-        supabase.from("department").select("id, department").order("department"),
-      ]);
+    async function loadDepartments() {
+      const { data, error } = await supabase
+        .from("department")
+        .select("id, department")
+        .order("department");
 
-      if (storesResponse.error) {
-        setError(storesResponse.error.message);
-      } else {
-        setStores(
-          (storesResponse.data ?? []).map((row) => ({
-            id: Number(row.id),
-            name: row.name as string,
-            average: 0,
-          })),
-        );
+      if (error) {
+        setDepartmentLoadError(error.message);
+        return;
       }
 
-      if (departmentsResponse.error) {
-        setDepartmentLoadError(departmentsResponse.error.message);
-      } else {
-        setDepartments(
-          (departmentsResponse.data ?? []).map((row) => ({
-            id: Number(row.id),
-            name: row.department as string,
-          })),
-        );
-      }
-      setLoading(false);
+      setDepartments(
+        (data ?? []).map((row) => ({
+          id: Number(row.id),
+          name: row.department as string,
+        })),
+      );
     }
 
     async function loadMunicipalities() {
@@ -117,7 +105,7 @@ export default function Home() {
       );
     }
 
-    void loadInitialStores();
+    void loadDepartments();
     void loadMunicipalities();
   }, []);
 
