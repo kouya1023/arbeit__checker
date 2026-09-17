@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type FormEvent, useEffect } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
 import StarRating from "../components/StarRating";
@@ -10,6 +10,10 @@ import StarRating from "../components/StarRating";
 type Store = { id: number; name: string; average: number };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
+
+function normalizeStoreNameForSearch(value: string) {
+  return value.replace(/\s/g, "").trim();
+}
 
 export default function Home() {
   const [search, setSearch] = useState("");
@@ -19,6 +23,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const [storeName, setStoreName] = useState("");
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
+  const [isStoreInputFocused, setIsStoreInputFocused] = useState(false);
   const [rating, setRating] = useState(0);
   const [numberOfPeople, setNumberOfPeople] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -30,7 +36,7 @@ export default function Home() {
     setLoading(true);
     const { data, error } = await supabase
       .from("store")
-      .select("id, name, average");
+      .select("id, name");
 
     if (error) {
       setError(error.message);
@@ -41,17 +47,41 @@ export default function Home() {
     const rows = (data ?? []).map((row) => ({
       id: row.id as number,
       name: row.name as string,
-      average: Number(row.average) || 0,
+      average: 0,
     }));
     setStores(rows);
     setLoading(false);
   }
 
   useEffect(() => {
-    fetchStores();
+    async function loadInitialStores() {
+      const { data, error } = await supabase.from("store").select("id, name");
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setStores(
+          (data ?? []).map((row) => ({
+            id: Number(row.id),
+            name: row.name as string,
+            average: 0,
+          })),
+        );
+      }
+      setLoading(false);
+    }
+
+    void loadInitialStores();
   }, []);
 
   const filtered = stores.filter((s) => search === "" || s.name.includes(search));
+  const normalizedStoreName = storeName.trim();
+  const normalizedStoreSearchTerm = normalizeStoreNameForSearch(storeName);
+  const storeSuggestions = stores
+    .filter((store) =>
+      normalizeStoreNameForSearch(store.name).includes(normalizedStoreSearchTerm),
+    )
+    .slice(0, 5);
 
   function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -60,6 +90,8 @@ export default function Home() {
   function closeWriteForm() {
     setShowWriteForm(false);
     setStoreName("");
+    setSelectedStoreId(null);
+    setIsStoreInputFocused(false);
     setRating(0);
     setNumberOfPeople("");
     setJobDescription("");
@@ -67,9 +99,20 @@ export default function Home() {
     setSubmitError(null);
   }
 
+  function handleStoreNameChange(value: string) {
+    setStoreName(value);
+    setSelectedStoreId(null);
+  }
+
+  function selectStore(store: Store) {
+    setStoreName(store.name);
+    setSelectedStoreId(store.id);
+    setIsStoreInputFocused(false);
+  }
+
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!storeName || rating === 0 || !numberOfPeople || !jobGap) {
+    if (!normalizedStoreName || rating === 0 || !numberOfPeople || !jobDescription) {
       setSubmitError("企業名・総合評価・人数・求人情報とのギャップを入力してください。");
       return;
     }
@@ -77,8 +120,38 @@ export default function Home() {
     setSubmitting(true);
     setSubmitError(null);
 
+    let storeId = selectedStoreId;
+    let storeNameForReview = normalizedStoreName;
+
+    if (storeId === null) {
+      const matchingStore = stores.find(
+        (store) =>
+          normalizeStoreNameForSearch(store.name) === normalizedStoreSearchTerm,
+      );
+
+      if (matchingStore) {
+        storeId = matchingStore.id;
+        storeNameForReview = matchingStore.name;
+      } else {
+        const { data: createdStore, error: createStoreError } = await supabase
+          .from("store")
+          .insert({ name: normalizedStoreName })
+          .select("id")
+          .maybeSingle();
+
+        if (createStoreError || !createdStore) {
+          setSubmitting(false);
+          setSubmitError(createStoreError?.message ?? "店舗の登録後にIDを取得できませんでした。");
+          return;
+        }
+
+        storeId = Number(createdStore.id);
+      }
+    }
+
     const { error } = await supabase.from("review").insert({
-      store_name: storeName,
+      store_id: storeId,
+      store_name: storeNameForReview,
       stage_evaluation: rating,
       number_of_people: numberOfPeople,
       job_description: jobDescription || null,
@@ -205,13 +278,48 @@ export default function Home() {
                 </button>
               </div>
               <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="企業名 *"
-                  value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
-                />
+                <div className="relative">
+                  <label
+                    htmlFor="store-name"
+                    className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
+                  >
+                    店舗名 *
+                  </label>
+                  <input
+                    id="store-name"
+                    type="text"
+                    placeholder="例: サンエー那覇メインプレイス"
+                    value={storeName}
+                    onChange={(e) => handleStoreNameChange(e.target.value)}
+                    onFocus={() => setIsStoreInputFocused(true)}
+                    onBlur={() => setIsStoreInputFocused(false)}
+                    autoComplete="off"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                  />
+                  {isStoreInputFocused && normalizedStoreName && storeSuggestions.length > 0 && (
+                    <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[color:var(--border)] bg-white shadow-lg">
+                      {storeSuggestions.map((store) => (
+                        <li key={store.id}>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectStore(store)}
+                            className="w-full px-4 py-3 text-left text-sm font-medium hover:bg-[color:var(--background)]"
+                          >
+                            {store.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {selectedStoreId !== null ? (
+                    <p className="mt-2 text-xs text-emerald-700">既存の店舗を選択済みです。</p>
+                  ) : normalizedStoreName ? (
+                    <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">
+                      候補にない場合は、新しい店舗として登録されます。
+                    </p>
+                  ) : null}
+                </div>
                 <div>
                   <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
                   <div className="flex gap-2">
