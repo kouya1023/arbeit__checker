@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
 
 type Department = { id: number; name: string };
-type Store = { id: number; name: string; reviewCount: number };
+type Store = { id: number; name: string; reviewCount: number; municipalityIds: number[] };
 type Municipality = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
@@ -18,6 +18,7 @@ function normalizeValueForSearch(value: string) {
 
 export default function Home() {
   const [search, setSearch] = useState("");
+  const [filterMunicipalityId, setFilterMunicipalityId] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +47,7 @@ export default function Home() {
 
     const [storeResult, reviewResult] = await Promise.all([
       supabase.from("store").select("id, name"),
-      supabase.from("review").select("store_id"),
+      supabase.from("review").select("store_id, munisipality_id"),
     ]);
 
     if (storeResult.error) {
@@ -56,15 +57,24 @@ export default function Home() {
     }
 
     const countByStoreId = new Map<number, number>();
+    const municipalityIdsByStoreId = new Map<number, Set<number>>();
     for (const row of reviewResult.data ?? []) {
       const id = Number(row.store_id);
       countByStoreId.set(id, (countByStoreId.get(id) ?? 0) + 1);
+
+      if (row.munisipality_id !== null && row.munisipality_id !== undefined) {
+        if (!municipalityIdsByStoreId.has(id)) {
+          municipalityIdsByStoreId.set(id, new Set());
+        }
+        municipalityIdsByStoreId.get(id)!.add(Number(row.munisipality_id));
+      }
     }
 
     const rows = (storeResult.data ?? []).map((row) => ({
       id: Number(row.id),
       name: row.name as string,
       reviewCount: countByStoreId.get(Number(row.id)) ?? 0,
+      municipalityIds: Array.from(municipalityIdsByStoreId.get(Number(row.id)) ?? []),
     }));
     setStores(rows);
     setLoading(false);
@@ -109,7 +119,13 @@ export default function Home() {
     void loadMunicipalities();
   }, []);
 
-  const filtered = stores.filter((s) => search === "" || s.name.includes(search));
+  const filtered = stores.filter((s) => {
+    const matchesSearch = search === "" || s.name.includes(search);
+    const matchesMunicipality =
+      filterMunicipalityId === "" ||
+      s.municipalityIds.includes(Number(filterMunicipalityId));
+    return matchesSearch && matchesMunicipality;
+  });
   const normalizedStoreName = storeName.trim();
   const normalizedStoreSearchTerm = normalizeValueForSearch(storeName);
   const storeSuggestions = stores
@@ -281,8 +297,8 @@ export default function Home() {
 
         {/* Search */}
         <section className="pb-10">
-          <div className="max-w-6xl mx-auto px-5">
-            <form onSubmit={handleSearchSubmit} className="flex gap-2 bg-white rounded-2xl p-2 shadow-lg max-w-xl">
+          <div className="max-w-6xl mx-auto px-5 flex flex-col gap-2 sm:flex-row sm:items-stretch max-w-xl">
+            <form onSubmit={handleSearchSubmit} className="flex flex-1 gap-2 bg-white rounded-2xl p-2 shadow-lg">
               <input
                 type="text"
                 placeholder="店舗名で検索..."
@@ -297,6 +313,19 @@ export default function Home() {
                 検索
               </button>
             </form>
+            <select
+              value={filterMunicipalityId}
+              onChange={(e) => setFilterMunicipalityId(e.target.value)}
+              aria-label="市町村で絞り込み"
+              className="rounded-2xl bg-white p-3 text-sm font-bold text-[color:var(--foreground)] shadow-lg outline-none shrink-0"
+            >
+              <option value="">すべての市町村</option>
+              {municipalities.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </div>
         </section>
       </div>
@@ -505,13 +534,16 @@ export default function Home() {
                     ))}
                   </select>
                 </div>
-                <textarea
-                  rows={3}
-                  placeholder="業務内容（任意）"
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
-                />
+                <div>
+                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">業務内容（任意）</p>
+                  <textarea
+                    rows={3}
+                    placeholder="実際に担当した業務内容を教えてください"
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
+                  />
+                </div>
                 <div>
                   <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">求人情報とのギャップ *</p>
                   <textarea
