@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
-import StarRating from "../components/StarRating";
 
-type Store = { id: number; name: string; average: number };
+type Store = { id: number; name: string; reviewCount: number };
 type Municipality = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
@@ -38,26 +37,35 @@ export default function Home() {
 
   async function fetchStores() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("store")
-      .select("id, name");
 
-    if (error) {
-      setError(error.message);
+    const [storeResult, reviewResult] = await Promise.all([
+      supabase.from("store").select("id, name"),
+      supabase.from("review").select("store_id"),
+    ]);
+
+    if (storeResult.error) {
+      setError(storeResult.error.message);
       setLoading(false);
       return;
     }
 
-    const rows = (data ?? []).map((row) => ({
-      id: row.id as number,
+    const countByStoreId = new Map<number, number>();
+    for (const row of reviewResult.data ?? []) {
+      const id = Number(row.store_id);
+      countByStoreId.set(id, (countByStoreId.get(id) ?? 0) + 1);
+    }
+
+    const rows = (storeResult.data ?? []).map((row) => ({
+      id: Number(row.id),
       name: row.name as string,
-      average: 0,
+      reviewCount: countByStoreId.get(Number(row.id)) ?? 0,
     }));
     setStores(rows);
     setLoading(false);
   }
 
   useEffect(() => {
+    fetchStores();
     async function loadInitialStores() {
       const { data, error } = await supabase.from("store").select("id, name");
 
@@ -265,12 +273,9 @@ export default function Home() {
                 className="block bg-[color:var(--card)] rounded-2xl p-5 border border-[color:var(--border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
               >
                 <p className="font-bold text-lg mb-2">{s.name}</p>
-                <div className="flex items-center gap-2">
-                  <StarRating value={s.average} />
-                  <span className="text-sm font-bold text-[color:var(--muted-foreground)]">
-                    {s.average.toFixed(1)}
-                  </span>
-                </div>
+                <p className="text-sm font-bold text-[color:var(--muted-foreground)]">
+                  {s.reviewCount}件の口コミ
+                </p>
               </Link>
             ))}
           </div>
