@@ -11,6 +11,10 @@ type Store = { id: number; name: string; average: number };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
 
+function normalizeStoreNameForSearch(value: string) {
+  return value.replace(/\s/g, "").trim();
+}
+
 export default function Home() {
   const [search, setSearch] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
@@ -71,8 +75,11 @@ export default function Home() {
 
   const filtered = stores.filter((s) => search === "" || s.name.includes(search));
   const normalizedStoreName = storeName.trim();
+  const normalizedStoreSearchTerm = normalizeStoreNameForSearch(storeName);
   const storeSuggestions = stores
-    .filter((store) => store.name.includes(normalizedStoreName))
+    .filter((store) =>
+      normalizeStoreNameForSearch(store.name).includes(normalizedStoreSearchTerm),
+    )
     .slice(0, 5);
 
   function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
@@ -112,42 +119,37 @@ export default function Home() {
     setSubmitError(null);
 
     let storeId = selectedStoreId;
+    let storeNameForReview = normalizedStoreName;
 
     if (storeId === null) {
-      const { data: createdStore, error: createStoreError } = await supabase
-        .from("store")
-        .insert({ name: normalizedStoreName })
-        .select("id")
-        .single();
+      const matchingStore = stores.find(
+        (store) =>
+          normalizeStoreNameForSearch(store.name) === normalizedStoreSearchTerm,
+      );
 
-      if (createStoreError) {
-        if (createStoreError.code === "23505") {
-          const { data: existingStore, error: findStoreError } = await supabase
-            .from("store")
-            .select("id")
-            .eq("name", normalizedStoreName)
-            .single();
+      if (matchingStore) {
+        storeId = matchingStore.id;
+        storeNameForReview = matchingStore.name;
+      } else {
+        const { data: createdStore, error: createStoreError } = await supabase
+          .from("store")
+          .insert({ name: normalizedStoreName })
+          .select("id")
+          .maybeSingle();
 
-          if (findStoreError || !existingStore) {
-            setSubmitting(false);
-            setSubmitError(findStoreError?.message ?? createStoreError.message);
-            return;
-          }
-
-          storeId = Number(existingStore.id);
-        } else {
+        if (createStoreError || !createdStore) {
           setSubmitting(false);
-          setSubmitError(createStoreError.message);
+          setSubmitError(createStoreError?.message ?? "店舗の登録後にIDを取得できませんでした。");
           return;
         }
-      } else {
+
         storeId = Number(createdStore.id);
       }
     }
 
     const { error } = await supabase.from("review").insert({
       store_id: storeId,
-      store_name: normalizedStoreName,
+      store_name: storeNameForReview,
       stage_evaluation: rating,
       number_of_people: numberOfPeople,
       job_description: jobDescription,
