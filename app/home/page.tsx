@@ -32,6 +32,7 @@ export default function Home() {
   const [rating, setRating] = useState(0);
   const [numberOfPeople, setNumberOfPeople] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [jobGap, setJobGap] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -114,6 +115,7 @@ export default function Home() {
     setRating(0);
     setNumberOfPeople("");
     setJobDescription("");
+    setJobGap("");
     setSubmitError(null);
   }
 
@@ -130,8 +132,8 @@ export default function Home() {
 
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!normalizedStoreName || !municipalityId || rating === 0 || !numberOfPeople || !jobDescription) {
-      setSubmitError("すべての項目を入力してください。");
+    if (!normalizedStoreName || rating === 0 || !numberOfPeople || !jobDescription) {
+      setSubmitError("企業名・総合評価・人数・求人情報とのギャップを入力してください。");
       return;
     }
 
@@ -173,7 +175,8 @@ export default function Home() {
       munisipality_id: Number(municipalityId),
       stage_evaluation: rating,
       number_of_people: numberOfPeople,
-      job_description: jobDescription,
+      job_description: jobDescription || null,
+      job_gap: jobGap,
     });
 
     setSubmitting(false);
@@ -396,11 +399,21 @@ export default function Home() {
                 </div>
                 <textarea
                   rows={3}
-                  placeholder="業務内容 *"
+                  placeholder="業務内容（任意）"
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
                 />
+                <div>
+                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">求人情報とのギャップ *</p>
+                  <textarea
+                    rows={3}
+                    placeholder="求人サイトの情報と実際の業務で感じた違いを教えてください"
+                    value={jobGap}
+                    onChange={(e) => setJobGap(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
+                  />
+                </div>
                 {submitError && <p className="text-sm text-red-600">{submitError}</p>}
                 <button
                   type="submit"

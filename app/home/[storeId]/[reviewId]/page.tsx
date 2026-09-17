@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../../../theme";
 import StarRating from "../../../components/StarRating";
 
-type ReviewDetail = { rating: number; numberOfPeople: string; jobDescription: string };
+type ReviewDetail = { rating: number; numberOfPeople: string; jobDescription: string; jobGap: string };
 
 export default function ReviewDetailPage() {
   const params = useParams<{ storeId: string; reviewId: string }>();
@@ -22,7 +22,7 @@ export default function ReviewDetailPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from("review")
-        .select("stage_evaluation, number_of_people, job_description")
+        .select("stage_evaluation, number_of_people, job_description, job_gap")
         .eq("id", reviewId)
         .single();
 
@@ -36,6 +36,7 @@ export default function ReviewDetailPage() {
         rating: Number(data.stage_evaluation) || 0,
         numberOfPeople: (data.number_of_people as string) ?? "",
         jobDescription: (data.job_description as string) ?? "",
+        jobGap: (data.job_gap as string) ?? "",
       });
       setLoading(false);
     }
@@ -73,7 +74,7 @@ export default function ReviewDetailPage() {
               <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
               <div className="flex items-center gap-2">
                 <StarRating value={review.rating} />
-                <span className="font-bold">{review.rating}</span>
+                <span className="font-bold">{review.rating.toFixed(1)}</span>
               </div>
             </div>
             <div>
@@ -83,6 +84,10 @@ export default function ReviewDetailPage() {
             <div>
               <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">業務内容</p>
               <p className="leading-relaxed whitespace-pre-wrap">{review.jobDescription || "記載なし"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">求人情報とのギャップ</p>
+              <p className="leading-relaxed whitespace-pre-wrap">{review.jobGap || "記載なし"}</p>
             </div>
           </div>
         )}
