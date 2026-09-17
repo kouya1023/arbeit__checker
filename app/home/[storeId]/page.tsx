@@ -93,7 +93,7 @@ export default function StoreReviewListPage() {
               >
                 <div className="flex items-center gap-2 mb-2">
                   <StarRating value={r.rating} />
-                  <span className="text-sm font-bold text-[color:var(--muted-foreground)]">{r.rating}</span>
+                  <span className="text-sm font-bold text-[color:var(--muted-foreground)]">{r.rating.toFixed(1)}</span>
                 </div>
                 <p className="text-sm text-[color:var(--muted-foreground)]">
                   アルバイト人数: {r.numberOfPeople || "不明"}
