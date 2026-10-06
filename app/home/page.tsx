@@ -128,7 +128,11 @@ export default function Home() {
   });
   const normalizedStoreName = storeName.trim();
   const normalizedStoreSearchTerm = normalizeValueForSearch(storeName);
-  const storeSuggestions = stores
+  const storesInMunicipality =
+    municipalityId === ""
+      ? []
+      : stores.filter((store) => store.municipalityIds.includes(Number(municipalityId)));
+  const storeSuggestions = storesInMunicipality
     .filter((store) =>
       normalizeValueForSearch(store.name).includes(normalizedStoreSearchTerm),
     )
@@ -161,6 +165,12 @@ export default function Home() {
     setSubmitError(null);
   }
 
+  function handleMunicipalityChange(value: string) {
+    setMunicipalityId(value);
+    setStoreName("");
+    setSelectedStoreId(null);
+  }
+
   function handleStoreNameChange(value: string) {
     setStoreName(value);
     setSelectedStoreId(null);
@@ -185,8 +195,8 @@ export default function Home() {
 
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!normalizedStoreName || rating === 0 || !numberOfPeople || !jobGap) {
-      setSubmitError("企業名・総合評価・人数・求人情報とのギャップを入力してください。");
+    if (!municipalityId || !normalizedStoreName || rating === 0 || !numberOfPeople || !jobGap) {
+      setSubmitError("市町村・店舗名・総合評価・人数・求人情報とのギャップを入力してください。");
       return;
     }
 
@@ -197,7 +207,7 @@ export default function Home() {
     let departmentId = selectedDepartmentId;
 
     if (storeId === null) {
-      const matchingStore = stores.find(
+      const matchingStore = storesInMunicipality.find(
         (store) =>
           normalizeValueForSearch(store.name) === normalizedStoreSearchTerm,
       );
@@ -388,6 +398,29 @@ export default function Home() {
                 </button>
               </div>
               <div className="space-y-3">
+                <div>
+                  <label
+                    htmlFor="municipality"
+                    className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
+                  >
+                    市町村 *
+                  </label>
+                  <select
+                    id="municipality"
+                    value={municipalityId}
+                    onChange={(e) => handleMunicipalityChange(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                  >
+                    <option value="" disabled>
+                      先に市町村を選択してください
+                    </option>
+                    {municipalities.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="relative">
                   <label
                     htmlFor="store-name"
@@ -398,13 +431,18 @@ export default function Home() {
                   <input
                     id="store-name"
                     type="text"
-                    placeholder="例: サンエー那覇メインプレイス"
+                    placeholder={
+                      municipalityId === ""
+                        ? "先に市町村を選択してください"
+                        : "例: サンエー那覇メインプレイス"
+                    }
                     value={storeName}
                     onChange={(e) => handleStoreNameChange(e.target.value)}
                     onFocus={() => setIsStoreInputFocused(true)}
                     onBlur={() => setIsStoreInputFocused(false)}
+                    disabled={municipalityId === ""}
                     autoComplete="off"
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   {isStoreInputFocused && normalizedStoreName && storeSuggestions.length > 0 && (
                     <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[color:var(--border)] bg-white shadow-lg">
@@ -427,6 +465,10 @@ export default function Home() {
                   ) : normalizedStoreName ? (
                     <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">
                       候補にない場合は、新しい店舗として登録されます。
+                    </p>
+                  ) : municipalityId !== "" ? (
+                    <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">
+                      選択した市町村内の店舗から候補を表示します。
                     </p>
                   ) : null}
                 </div>
@@ -474,29 +516,6 @@ export default function Home() {
                   {departmentLoadError && (
                     <p className="mt-2 text-xs text-red-600">部署候補の取得に失敗しました: {departmentLoadError}</p>
                   )}
-                </div>
-                <div>
-                  <label
-                    htmlFor="municipality"
-                    className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
-                  >
-                    市町村 *
-                  </label>
-                  <select
-                    id="municipality"
-                    value={municipalityId}
-                    onChange={(e) => setMunicipalityId(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
-                  >
-                    <option value="" disabled>
-                      選択してください
-                    </option>
-                    {municipalities.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
