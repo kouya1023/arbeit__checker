@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
@@ -17,6 +18,8 @@ function normalizeValueForSearch(value: string) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
   const [search, setSearch] = useState("");
   const [filterMunicipalityId, setFilterMunicipalityId] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
@@ -147,6 +150,12 @@ export default function Home() {
 
   function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await supabase.auth.signOut();
+    router.push("/login");
   }
 
   function closeWriteForm() {
@@ -294,12 +303,21 @@ export default function Home() {
             height={64}
             className="shrink-0"
           />
-          <button
-            onClick={() => setShowWriteForm(true)}
-            className="bg-[color:var(--primary)] text-white text-sm font-bold px-4 py-1.5 rounded-full hover:opacity-90 transition-opacity"
-          >
-            口コミを書く
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowWriteForm(true)}
+              className="bg-[color:var(--primary)] text-white text-sm font-bold px-4 py-1.5 rounded-full hover:opacity-90 transition-opacity"
+            >
+              口コミを書く
+            </button>
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="border border-white/30 text-white text-sm font-bold px-4 py-1.5 rounded-full hover:bg-white/10 transition-colors disabled:opacity-60"
+            >
+              {loggingOut ? "ログアウト中..." : "ログアウト"}
+            </button>
+          </div>
         </header>
 
         {/* Search */}
