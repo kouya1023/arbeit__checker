@@ -8,7 +8,8 @@ import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
 
 type Department = { id: number; name: string };
-type Store = { id: number; name: string; reviewCount: number; municipalityIds: number[] };
+type Store = { id: number; name: string; reviewCount: number; averageRating: number | null; municipalityIds: number[] };
+type StoreRating = { store_id: number; average_rating: number; review_count: number };
 type Municipality = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
@@ -47,24 +48,27 @@ export default function Home() {
 
   async function fetchStores() {
     setLoading(true);
+    setError(null);
 
-    const [storeResult, reviewResult] = await Promise.all([
+    const [storeResult, reviewResult, ratingResult] = await Promise.all([
       supabase.from("store").select("id, name"),
       supabase.from("review").select("store_id, munisipality_id"),
+      supabase.rpc("get_store_ratings"),
     ]);
 
-    if (storeResult.error) {
-      setError(storeResult.error.message);
+    const fetchError = storeResult.error ?? reviewResult.error ?? ratingResult.error;
+    if (fetchError) {
+      setError(fetchError.message);
       setLoading(false);
       return;
     }
 
-    const countByStoreId = new Map<number, number>();
+    const ratingsByStoreId = new Map<number, StoreRating>(
+      ((ratingResult.data ?? []) as StoreRating[]).map((row) => [Number(row.store_id), row]),
+    );
     const municipalityIdsByStoreId = new Map<number, Set<number>>();
     for (const row of reviewResult.data ?? []) {
       const id = Number(row.store_id);
-      countByStoreId.set(id, (countByStoreId.get(id) ?? 0) + 1);
-
       if (row.munisipality_id !== null && row.munisipality_id !== undefined) {
         if (!municipalityIdsByStoreId.has(id)) {
           municipalityIdsByStoreId.set(id, new Set());
@@ -76,7 +80,8 @@ export default function Home() {
     const rows = (storeResult.data ?? []).map((row) => ({
       id: Number(row.id),
       name: row.name as string,
-      reviewCount: countByStoreId.get(Number(row.id)) ?? 0,
+      reviewCount: Number(ratingsByStoreId.get(Number(row.id))?.review_count ?? 0),
+      averageRating: ratingsByStoreId.get(Number(row.id))?.average_rating ?? null,
       municipalityIds: Array.from(municipalityIdsByStoreId.get(Number(row.id)) ?? []),
     }));
     setStores(rows);
@@ -376,7 +381,9 @@ export default function Home() {
               >
                 <p className="font-bold text-lg mb-2">{s.name}</p>
                 <p className="text-sm font-bold text-[color:var(--muted-foreground)]">
-                  {s.reviewCount}件の口コミ
+                  {s.averageRating === null
+                    ? "評価なし"
+                    : `★ ${s.averageRating.toFixed(1)}（${s.reviewCount}件）`}
                 </p>
               </Link>
             ))}
