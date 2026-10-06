@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
 
 type Department = { id: number; name: string };
-type Store = { id: number; name: string; reviewCount: number; municipalityIds: number[] };
+type Store = { id: number; name: string; reviewCount: number; municipalityId: number | null };
 type Municipality = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
@@ -49,8 +49,8 @@ export default function Home() {
     setLoading(true);
 
     const [storeResult, reviewResult] = await Promise.all([
-      supabase.from("store").select("id, name"),
-      supabase.from("review").select("store_id, munisipality_id"),
+      supabase.from("store").select("id, name, munisipality_id"),
+      supabase.from("review").select("store_id"),
     ]);
 
     if (storeResult.error) {
@@ -60,24 +60,16 @@ export default function Home() {
     }
 
     const countByStoreId = new Map<number, number>();
-    const municipalityIdsByStoreId = new Map<number, Set<number>>();
     for (const row of reviewResult.data ?? []) {
       const id = Number(row.store_id);
       countByStoreId.set(id, (countByStoreId.get(id) ?? 0) + 1);
-
-      if (row.munisipality_id !== null && row.munisipality_id !== undefined) {
-        if (!municipalityIdsByStoreId.has(id)) {
-          municipalityIdsByStoreId.set(id, new Set());
-        }
-        municipalityIdsByStoreId.get(id)!.add(Number(row.munisipality_id));
-      }
     }
 
     const rows = (storeResult.data ?? []).map((row) => ({
       id: Number(row.id),
       name: row.name as string,
       reviewCount: countByStoreId.get(Number(row.id)) ?? 0,
-      municipalityIds: Array.from(municipalityIdsByStoreId.get(Number(row.id)) ?? []),
+      municipalityId: row.munisipality_id === null ? null : Number(row.munisipality_id),
     }));
     setStores(rows);
     setLoading(false);
@@ -126,7 +118,7 @@ export default function Home() {
     const matchesSearch = search === "" || s.name.includes(search);
     const matchesMunicipality =
       filterMunicipalityId === "" ||
-      s.municipalityIds.includes(Number(filterMunicipalityId));
+      s.municipalityId === Number(filterMunicipalityId);
     return matchesSearch && matchesMunicipality;
   });
   const normalizedStoreName = storeName.trim();
@@ -134,7 +126,7 @@ export default function Home() {
   const storesInMunicipality =
     municipalityId === ""
       ? []
-      : stores.filter((store) => store.municipalityIds.includes(Number(municipalityId)));
+      : stores.filter((store) => store.municipalityId === Number(municipalityId));
   const storeSuggestions = storesInMunicipality
     .filter((store) =>
       normalizeValueForSearch(store.name).includes(normalizedStoreSearchTerm),
@@ -226,7 +218,7 @@ export default function Home() {
       } else {
         const { data: createdStore, error: createStoreError } = await supabase
           .from("store")
-          .insert({ name: normalizedStoreName })
+          .insert({ name: normalizedStoreName, munisipality_id: Number(municipalityId) })
           .select("id")
           .maybeSingle();
 
@@ -269,7 +261,6 @@ export default function Home() {
 
     const { error } = await supabase.from("review").insert({
       store_id: storeId,
-      munisipality_id: Number(municipalityId),
       stage_evaluation: rating,
       number_of_people: numberOfPeople,
       job_description: jobDescription || null,
