@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { formatReviewDate } from "@/lib/formatReviewDate";
 import { THEME, outfit } from "../../../theme";
 import StarRating from "../../../components/StarRating";
 
 type ReviewDetail = {
   rating: number;
+  createdAt: string | null;
   numberOfPeople: string;
   departmentName: string | null;
   jobDescription: string;
@@ -28,7 +30,7 @@ export default function ReviewDetailPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from("review")
-        .select("stage_evaluation, number_of_people, department_id, job_description, job_gap")
+        .select("stage_evaluation, number_of_people, department_id, job_description, job_gap, created_at")
         .eq("id", reviewId)
         .single();
 
@@ -42,7 +44,7 @@ export default function ReviewDetailPage() {
       if (data.department_id !== null) {
         const { data: department, error: departmentError } = await supabase
           .from("department")
-          .select("department")
+          .select("name")
           .eq("id", data.department_id)
           .maybeSingle();
 
@@ -52,11 +54,12 @@ export default function ReviewDetailPage() {
           return;
         }
 
-        departmentName = (department?.department as string) ?? null;
+        departmentName = (department?.name as string) ?? null;
       }
 
       setReview({
         rating: Number(data.stage_evaluation) || 0,
+        createdAt: (data.created_at as string) ?? null,
         numberOfPeople: (data.number_of_people as string) ?? "",
         departmentName,
         jobDescription: (data.job_description as string) ?? "",
@@ -100,6 +103,10 @@ export default function ReviewDetailPage() {
                 <StarRating value={review.rating} />
                 <span className="font-bold">{review.rating.toFixed(1)}</span>
               </div>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">投稿日時</p>
+              <p className="font-medium">{formatReviewDate(review.createdAt)}</p>
             </div>
             <div>
               <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">大学生バイトの人数</p>
