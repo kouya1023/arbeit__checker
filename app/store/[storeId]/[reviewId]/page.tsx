@@ -78,7 +78,7 @@ export default function ReviewDetailPage() {
     >
       <header className="bg-[color:var(--secondary)]">
         <div className="max-w-3xl mx-auto px-5 py-4">
-          <Link href={`/home/${storeId}`} className="text-white/70 hover:text-white text-sm font-bold">
+          <Link href={`/store/${storeId}`} className="text-white/70 hover:text-white text-sm font-bold">
             ← 口コミ一覧に戻る
           </Link>
         </div>
