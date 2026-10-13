@@ -83,8 +83,8 @@ export default function Home() {
     async function loadDepartments() {
       const { data, error } = await supabase
         .from("department")
-        .select("id, department")
-        .order("department");
+        .select("id, name")
+        .order("name");
 
       if (error) {
         setDepartmentLoadError(error.message);
@@ -94,7 +94,7 @@ export default function Home() {
       setDepartments(
         (data ?? []).map((row) => ({
           id: Number(row.id),
-          name: row.department as string,
+          name: row.name as string,
         })),
       );
     }
@@ -102,13 +102,13 @@ export default function Home() {
     async function loadMunicipalities() {
       const { data } = await supabase
         .from("municipality")
-        .select("id, munisipality")
+        .select("id, name")
         .order("id");
 
       setMunicipalities(
         (data ?? []).map((row) => ({
           id: Number(row.id),
-          name: row.munisipality as string,
+          name: row.name as string,
         })),
       );
     }
@@ -252,7 +252,7 @@ export default function Home() {
       } else {
         const { data: createdDepartment, error: createDepartmentError } = await supabase
           .from("department")
-          .insert({ department: normalizedDepartmentName })
+          .insert({ name: normalizedDepartmentName })
           .select("id")
           .maybeSingle();
 
