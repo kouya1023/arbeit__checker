@@ -20,7 +20,7 @@ function normalizeValueForSearch(value: string) {
 async function loadStoreRows(): Promise<Store[]> {
   const { data, error } = await supabase
     .from("store")
-    .select("id, name, munisipality_id, average_rating, review_count");
+    .select("id, name, munisipality_id, average, review_count");
 
   if (error) throw error;
 
@@ -28,7 +28,7 @@ async function loadStoreRows(): Promise<Store[]> {
     id: Number(row.id),
     name: row.name as string,
     reviewCount: Number(row.review_count) || 0,
-    averageRating: row.average_rating === null ? null : Number(row.average_rating),
+    averageRating: Number(row.review_count) === 0 ? null : Number(row.average),
     municipalityId:
       row.munisipality_id !== null && row.munisipality_id !== undefined
         ? Number(row.munisipality_id)

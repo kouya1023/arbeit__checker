@@ -1,18 +1,17 @@
 -- Keep store ratings up to date when reviews change, so listing stores does
 -- not aggregate the review table on every request.
 alter table public.store
-  add column if not exists average_rating double precision,
   add column if not exists review_count bigint not null default 0;
 
 -- Existing reviews need a one-time backfill before the trigger takes over.
 update public.store as s
 set review_count = stats.review_count,
-    average_rating = stats.average_rating
+    average = stats.average_rating
 from (
   select
     s.id as store_id,
     count(r.id) as review_count,
-    avg(r.stage_evaluation)::double precision as average_rating
+    coalesce(avg(r.stage_evaluation), 0)::double precision as average_rating
   from public.store as s
   left join public.review as r on r.store_id = s.id
   group by s.id
@@ -35,11 +34,11 @@ begin
 
   update public.store as s
   set review_count = stats.review_count,
-      average_rating = stats.average_rating
+      average = stats.average_rating
   from (
     select
       count(*) as review_count,
-      avg(r.stage_evaluation)::double precision as average_rating
+      coalesce(avg(r.stage_evaluation), 0)::double precision as average_rating
     from public.review as r
     where r.store_id = p_store_id
   ) as stats
