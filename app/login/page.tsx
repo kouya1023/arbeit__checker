@@ -47,7 +47,7 @@ export default function Login() {
       return;
     }
 
-    router.push("/home");
+    router.push("/");
   }
 
   async function handleGuestLogin() {
@@ -61,7 +61,7 @@ export default function Login() {
       return;
     }
 
-    router.push("/home");
+    router.push("/");
   }
 
   return (

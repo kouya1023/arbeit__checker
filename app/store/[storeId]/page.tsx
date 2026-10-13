@@ -57,7 +57,7 @@ export default function StoreReviewListPage() {
     >
       <header className="bg-[color:var(--secondary)]">
         <div className="max-w-6xl mx-auto px-5 py-4">
-          <Link href="/home" className="text-white/70 hover:text-white text-sm font-bold">
+          <Link href="/" className="text-white/70 hover:text-white text-sm font-bold">
             ← 店舗一覧に戻る
           </Link>
           <h1 className="text-white font-black text-2xl mt-2">{storeName ?? "口コミ一覧"}</h1>
@@ -88,7 +88,7 @@ export default function StoreReviewListPage() {
             {reviews.map((r) => (
               <Link
                 key={r.id}
-                href={`/home/${storeId}/${r.id}`}
+                href={`/store/${storeId}/${r.id}`}
                 className="block bg-[color:var(--card)] rounded-2xl p-5 border border-[color:var(--border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
               >
                 <div className="flex items-center gap-2 mb-2">
