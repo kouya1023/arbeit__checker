@@ -9,13 +9,31 @@ import { THEME, outfit } from "./theme";
 
 type Department = { id: number; name: string };
 type Store = { id: number; name: string; reviewCount: number; averageRating: number | null; municipalityId: number | null };
-type StoreRating = { store_id: number; average_rating: number | null; review_count: number };
 type Municipality = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
 
 function normalizeValueForSearch(value: string) {
   return value.replace(/\s/g, "").trim();
+}
+
+async function loadStoreRows(): Promise<Store[]> {
+  const { data, error } = await supabase
+    .from("store")
+    .select("id, name, munisipality_id, average_rating, review_count");
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    id: Number(row.id),
+    name: row.name as string,
+    reviewCount: Number(row.review_count) || 0,
+    averageRating: row.average_rating === null ? null : Number(row.average_rating),
+    municipalityId:
+      row.munisipality_id !== null && row.munisipality_id !== undefined
+        ? Number(row.munisipality_id)
+        : null,
+  }));
 }
 
 export default function Home() {
@@ -46,41 +64,14 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  async function fetchStores() {
-    setLoading(true);
-
-    const [storeResult, ratingResult] = await Promise.all([
-      supabase.from("store").select("id, name, munisipality_id"),
-      supabase.rpc("get_store_ratings"),
-    ]);
-
-    const fetchError = storeResult.error ?? ratingResult.error;
-    if (fetchError) {
-      setError(fetchError.message);
-      setLoading(false);
-      return;
-    }
-
-    const ratingsByStoreId = new Map<number, StoreRating>(
-      ((ratingResult.data ?? []) as StoreRating[]).map((row) => [Number(row.store_id), row]),
-    );
-
-    const rows = (storeResult.data ?? []).map((row) => ({
-      id: Number(row.id),
-      name: row.name as string,
-      reviewCount: Number(ratingsByStoreId.get(Number(row.id))?.review_count ?? 0),
-      averageRating: ratingsByStoreId.get(Number(row.id))?.average_rating ?? null,
-      municipalityId:
-        row.munisipality_id !== null && row.munisipality_id !== undefined
-          ? Number(row.munisipality_id)
-          : null,
-    }));
-    setStores(rows);
-    setLoading(false);
-  }
-
   useEffect(() => {
-    fetchStores();
+    void loadStoreRows()
+      .then((rows) => {
+        setStores(rows);
+        setError(null);
+      })
+      .catch((error: Error) => setError(error.message))
+      .finally(() => setLoading(false));
     async function loadDepartments() {
       const { data, error } = await supabase
         .from("department")
@@ -286,7 +277,15 @@ export default function Home() {
     }
 
     closeWriteForm();
-    fetchStores();
+    setLoading(true);
+    try {
+      setStores(await loadStoreRows());
+      setError(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "店舗一覧の取得に失敗しました");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
