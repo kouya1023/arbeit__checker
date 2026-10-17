@@ -42,7 +42,7 @@ export default function ReviewDetailPage() {
       if (data.department_id !== null) {
         const { data: department, error: departmentError } = await supabase
           .from("department")
-          .select("department")
+          .select("name")
           .eq("id", data.department_id)
           .maybeSingle();
 
@@ -52,7 +52,7 @@ export default function ReviewDetailPage() {
           return;
         }
 
-        departmentName = (department?.department as string) ?? null;
+        departmentName = (department?.name as string) ?? null;
       }
 
       setReview({
