@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { formatReviewDate } from "@/lib/formatReviewDate";
 import { THEME, outfit } from "../../theme";
 import StarRating from "../../components/StarRating";
 
-type ReviewSummary = { id: number; rating: number; numberOfPeople: string };
+type ReviewSummary = { id: number; rating: number; numberOfPeople: string; createdAt: string | null };
 
 export default function StoreReviewListPage() {
   const params = useParams<{ storeId: string }>();
@@ -26,7 +27,7 @@ export default function StoreReviewListPage() {
         supabase.from("store").select("name").eq("id", storeId).maybeSingle(),
         supabase
           .from("review")
-          .select("id, stage_evaluation, number_of_people")
+          .select("id, stage_evaluation, number_of_people, created_at")
           .eq("store_id", storeId),
       ]);
 
@@ -42,6 +43,7 @@ export default function StoreReviewListPage() {
           id: row.id as number,
           rating: Number(row.stage_evaluation) || 0,
           numberOfPeople: (row.number_of_people as string) ?? "",
+          createdAt: (row.created_at as string) ?? null,
         }))
       );
       setLoading(false);
@@ -97,6 +99,9 @@ export default function StoreReviewListPage() {
                 </div>
                 <p className="text-sm text-[color:var(--muted-foreground)]">
                   アルバイト人数: {r.numberOfPeople || "不明"}
+                </p>
+                <p className="text-xs text-[color:var(--muted-foreground)] mt-2">
+                  投稿日時: {formatReviewDate(r.createdAt)}
                 </p>
               </Link>
             ))}

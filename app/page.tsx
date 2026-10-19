@@ -8,10 +8,18 @@ import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "./theme";
 
 type Department = { id: number; name: string };
-type Store = { id: number; name: string; reviewCount: number; averageRating: number | null; municipalityId: number | null };
+type Store = {
+  id: number;
+  name: string;
+  reviewCount: number;
+  averageRating: number | null;
+  municipalityId: number | null;
+  isRecruiting: boolean | null;
+};
 type Municipality = { id: number; name: string };
 
 const NUMBER_OF_PEOPLE_OPTIONS = ["1~3人", "4~6人", "7~9人", "10人以上"];
+const RECRUITING_OPTIONS = ["募集中", "募集していない", "不明"];
 
 function normalizeValueForSearch(value: string) {
   return value.replace(/\s/g, "").trim();
@@ -20,7 +28,7 @@ function normalizeValueForSearch(value: string) {
 async function loadStoreRows(): Promise<Store[]> {
   const { data, error } = await supabase
     .from("store")
-    .select("id, name, munisipality_id, average, review_count");
+    .select("id, name, munisipality_id, average, review_count, is_recruiting");
 
   if (error) throw error;
 
@@ -33,6 +41,10 @@ async function loadStoreRows(): Promise<Store[]> {
       row.munisipality_id !== null && row.munisipality_id !== undefined
         ? Number(row.munisipality_id)
         : null,
+    isRecruiting:
+      row.is_recruiting === null || row.is_recruiting === undefined
+        ? null
+        : Boolean(row.is_recruiting),
   }));
 }
 
@@ -41,6 +53,7 @@ export default function Home() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [search, setSearch] = useState("");
   const [filterMunicipalityId, setFilterMunicipalityId] = useState("");
+  const [filterRecruiting, setFilterRecruiting] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +72,7 @@ export default function Home() {
   const [municipalityId, setMunicipalityId] = useState("");
   const [rating, setRating] = useState(0);
   const [numberOfPeople, setNumberOfPeople] = useState("");
+  const [recruiting, setRecruiting] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobGap, setJobGap] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -114,7 +128,12 @@ export default function Home() {
     const matchesMunicipality =
       filterMunicipalityId === "" ||
       s.municipalityId === Number(filterMunicipalityId);
-    return matchesSearch && matchesMunicipality;
+    const matchesRecruiting =
+      filterRecruiting === "" ||
+      (filterRecruiting === "true"
+        ? s.isRecruiting === true
+        : s.isRecruiting !== true);
+    return matchesSearch && matchesMunicipality && matchesRecruiting;
   });
   const normalizedStoreName = storeName.trim();
   const normalizedStoreSearchTerm = normalizeValueForSearch(storeName);
@@ -156,6 +175,7 @@ export default function Home() {
     setMunicipalityId("");
     setRating(0);
     setNumberOfPeople("");
+    setRecruiting("");
     setJobDescription("");
     setJobGap("");
     setSubmitError(null);
@@ -191,10 +211,12 @@ export default function Home() {
 
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!municipalityId || !normalizedStoreName || rating === 0 || !numberOfPeople || !jobGap) {
-      setSubmitError("市町村・店舗名・総合評価・人数・求人情報とのギャップを入力してください。");
+    if (!municipalityId || !normalizedStoreName || rating === 0 || !numberOfPeople || !recruiting || !jobGap) {
+      setSubmitError("市町村・店舗名・総合評価・人数・求人募集状況・求人情報とのギャップを入力してください。");
       return;
     }
+
+    const isRecruiting = recruiting === "募集中";
 
     setSubmitting(true);
     setSubmitError(null);
@@ -260,6 +282,18 @@ export default function Home() {
       }
     }
 
+    // 投稿内容に合わせて店舗の求人募集状況を更新（募集中のみ true）
+    const { error: updateRecruitingError } = await supabase
+      .from("store")
+      .update({ is_recruiting: isRecruiting })
+      .eq("id", storeId);
+
+    if (updateRecruitingError) {
+      setSubmitting(false);
+      setSubmitError(updateRecruitingError.message);
+      return;
+    }
+
     const { error } = await supabase.from("review").insert({
       store_id: storeId,
       stage_evaluation: rating,
@@ -323,14 +357,14 @@ export default function Home() {
 
         {/* Search */}
         <section className="pb-10">
-          <div className="max-w-6xl mx-auto px-5 flex flex-col gap-2 sm:flex-row sm:items-stretch max-w-xl">
-            <form onSubmit={handleSearchSubmit} className="flex flex-1 gap-2 bg-white rounded-2xl p-2 shadow-lg">
+          <div className="max-w-3xl mx-auto px-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
+            <form onSubmit={handleSearchSubmit} className="flex min-w-0 flex-1 basis-full gap-2 bg-white rounded-2xl p-2 shadow-lg sm:basis-auto">
               <input
                 type="text"
                 placeholder="店舗名で検索..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-3 py-2 text-[color:var(--foreground)] text-sm font-medium outline-none bg-transparent placeholder:text-[color:var(--muted-foreground)]"
+                className="min-w-0 flex-1 px-3 py-2 text-[color:var(--foreground)] text-sm font-medium outline-none bg-transparent placeholder:text-[color:var(--muted-foreground)]"
               />
               <button
                 type="submit"
@@ -351,6 +385,16 @@ export default function Home() {
                   {m.name}
                 </option>
               ))}
+            </select>
+            <select
+              value={filterRecruiting}
+              onChange={(e) => setFilterRecruiting(e.target.value)}
+              aria-label="募集状況で絞り込み"
+              className="rounded-2xl bg-white p-3 text-sm font-bold text-[color:var(--foreground)] shadow-lg outline-none shrink-0"
+            >
+              <option value="">すべての募集状況</option>
+              <option value="true">募集中のみ</option>
+              <option value="false">募集なし・不明</option>
             </select>
           </div>
         </section>
@@ -385,7 +429,18 @@ export default function Home() {
                 href={`/store/${s.id}`}
                 className="block bg-[color:var(--card)] rounded-2xl p-5 border border-[color:var(--border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
               >
-                <p className="font-bold text-lg mb-2">{s.name}</p>
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <p className="font-bold text-lg">{s.name}</p>
+                  {s.isRecruiting === true ? (
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                      募集中
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-full bg-[color:var(--background)] px-2 py-0.5 text-xs font-bold text-[color:var(--muted-foreground)]">
+                      {s.isRecruiting === false ? "募集なし" : "情報なし"}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm font-bold text-[color:var(--muted-foreground)]">
                   {s.averageRating === null
                     ? "評価なし"
@@ -565,6 +620,23 @@ export default function Home() {
                       選択してください
                     </option>
                     {NUMBER_OF_PEOPLE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">求人募集状況</p>
+                  <select
+                    value={recruiting}
+                    onChange={(e) => setRecruiting(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                  >
+                    <option value="" disabled>
+                      選択してください
+                    </option>
+                    {RECRUITING_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
                       </option>
