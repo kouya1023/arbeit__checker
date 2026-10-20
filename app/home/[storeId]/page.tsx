@@ -14,6 +14,7 @@ export default function StoreReviewListPage() {
   const storeId = params.storeId;
 
   const [storeName, setStoreName] = useState<string | null>(null);
+  const [municipalityName, setMunicipalityName] = useState<string | null>(null);
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export default function StoreReviewListPage() {
       setLoading(true);
 
       const [storeResult, reviewResult] = await Promise.all([
-        supabase.from("store").select("name").eq("id", storeId).maybeSingle(),
+        supabase.from("store").select("name, munisipality_id").eq("id", storeId).maybeSingle(),
         supabase
           .from("review")
           .select("id, stage_evaluation, number_of_people")
@@ -37,6 +38,16 @@ export default function StoreReviewListPage() {
       }
 
       setStoreName((storeResult.data?.name as string) ?? null);
+
+      const municipalityId = storeResult.data?.munisipality_id;
+      if (municipalityId !== null && municipalityId !== undefined) {
+        const { data: municipality } = await supabase
+          .from("municipality")
+          .select("name")
+          .eq("id", municipalityId)
+          .maybeSingle();
+        setMunicipalityName((municipality?.name as string) ?? null);
+      }
       setReviews(
         (reviewResult.data ?? []).map((row) => ({
           id: row.id as number,
@@ -61,6 +72,16 @@ export default function StoreReviewListPage() {
             ← 店舗一覧に戻る
           </Link>
           <h1 className="text-white font-black text-2xl mt-2">{storeName ?? "口コミ一覧"}</h1>
+          {storeName && (
+            <a
+              href={`https://jp.indeed.com/jobs?q=${encodeURIComponent(storeName)}&l=${encodeURIComponent(`沖縄県${municipalityName ?? ""}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block mt-3 text-sm font-bold text-white bg-white/15 hover:bg-white/25 rounded-full px-4 py-1.5 transition-colors"
+            >
+              Indeedで求人を見る ↗
+            </a>
+          )}
         </div>
       </header>
 
