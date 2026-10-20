@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { formatReviewDate } from "@/lib/formatReviewDate";
 import { THEME, outfit } from "../../theme";
 import StarRating from "../../components/StarRating";
 
-type ReviewSummary = { id: number; rating: number; numberOfPeople: string };
+type ReviewSummary = { id: number; rating: number; numberOfPeople: string; createdAt: string | null };
 
 export default function StoreReviewListPage() {
   const params = useParams<{ storeId: string }>();
@@ -27,7 +28,7 @@ export default function StoreReviewListPage() {
         supabase.from("store").select("name, munisipality_id").eq("id", storeId).maybeSingle(),
         supabase
           .from("review")
-          .select("id, stage_evaluation, number_of_people")
+          .select("id, stage_evaluation, number_of_people, created_at")
           .eq("store_id", storeId),
       ]);
 
@@ -53,6 +54,7 @@ export default function StoreReviewListPage() {
           id: row.id as number,
           rating: Number(row.stage_evaluation) || 0,
           numberOfPeople: (row.number_of_people as string) ?? "",
+          createdAt: (row.created_at as string) ?? null,
         }))
       );
       setLoading(false);
@@ -68,7 +70,7 @@ export default function StoreReviewListPage() {
     >
       <header className="bg-[color:var(--secondary)]">
         <div className="max-w-6xl mx-auto px-5 py-4">
-          <Link href="/home" className="text-white/70 hover:text-white text-sm font-bold">
+          <Link href="/" className="text-white/70 hover:text-white text-sm font-bold">
             ← 店舗一覧に戻る
           </Link>
           <h1 className="text-white font-black text-2xl mt-2">{storeName ?? "口コミ一覧"}</h1>
@@ -109,7 +111,7 @@ export default function StoreReviewListPage() {
             {reviews.map((r) => (
               <Link
                 key={r.id}
-                href={`/home/${storeId}/${r.id}`}
+                href={`/store/${storeId}/${r.id}`}
                 className="block bg-[color:var(--card)] rounded-2xl p-5 border border-[color:var(--border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -118,6 +120,9 @@ export default function StoreReviewListPage() {
                 </div>
                 <p className="text-sm text-[color:var(--muted-foreground)]">
                   アルバイト人数: {r.numberOfPeople || "不明"}
+                </p>
+                <p className="text-xs text-[color:var(--muted-foreground)] mt-2">
+                  投稿日時: {formatReviewDate(r.createdAt)}
                 </p>
               </Link>
             ))}

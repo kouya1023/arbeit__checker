@@ -56,7 +56,7 @@ export async function proxy(request: NextRequest) {
   // ログイン済みでログイン/新規登録ページに来た場合はホームへ
   if (user && isPublicPath) {
     const url = request.nextUrl.clone();
-    url.pathname = "/home";
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
