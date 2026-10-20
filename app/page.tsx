@@ -24,6 +24,20 @@ function normalizeValueForSearch(value: string) {
   return value.replace(/\s/g, "").trim();
 }
 
+function RequirementBadge({ required }: { required: boolean }) {
+  return (
+    <span
+      className={
+        required
+          ? "ml-1 inline-flex rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-bold text-red-700"
+          : "ml-1 inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600"
+      }
+    >
+      {required ? "必須" : "任意"}
+    </span>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -54,6 +68,7 @@ export default function Home() {
   const [jobGap, setJobGap] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showRequiredErrors, setShowRequiredErrors] = useState(false);
 
   async function fetchStores() {
     setLoading(true);
@@ -144,6 +159,14 @@ export default function Home() {
     return matchesSearch && matchesMunicipality && matchesRecruiting;
   });
   const normalizedStoreName = storeName.trim();
+  const missingRequiredFields = {
+    municipality: !municipalityId,
+    store: !normalizedStoreName,
+    rating: rating === 0,
+    numberOfPeople: !numberOfPeople,
+    recruiting: !recruiting,
+    jobGap: !jobGap.trim(),
+  };
   const normalizedStoreSearchTerm = normalizeValueForSearch(storeName);
   const storesInMunicipality =
     municipalityId === ""
@@ -187,6 +210,7 @@ export default function Home() {
     setJobDescription("");
     setJobGap("");
     setSubmitError(null);
+    setShowRequiredErrors(false);
   }
 
   function handleMunicipalityChange(value: string) {
@@ -219,8 +243,18 @@ export default function Home() {
 
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!municipalityId || !normalizedStoreName || rating === 0 || !numberOfPeople || !recruiting || !jobGap) {
-      setSubmitError("市町村・店舗名・総合評価・人数・求人募集状況・求人情報とのギャップを入力してください。");
+    setShowRequiredErrors(true);
+    const firstMissingField = [
+      { id: "municipality", missing: missingRequiredFields.municipality },
+      { id: "store-name", missing: missingRequiredFields.store },
+      { id: "rating-1", missing: missingRequiredFields.rating },
+      { id: "number-of-people", missing: missingRequiredFields.numberOfPeople },
+      { id: "recruiting", missing: missingRequiredFields.recruiting },
+      { id: "job-gap", missing: missingRequiredFields.jobGap },
+    ].find(({ missing }) => missing);
+    if (firstMissingField) {
+      setSubmitError(null);
+      requestAnimationFrame(() => document.getElementById(firstMissingField.id)?.focus());
       return;
     }
 
@@ -462,7 +496,12 @@ export default function Home() {
           >
             <form onSubmit={handleWriteSubmit} className="p-6">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="font-black text-xl">口コミを投稿する</h3>
+                <div>
+                  <h3 className="font-black text-xl">口コミを投稿する</h3>
+                  <p className="mt-1 text-xs font-medium text-[color:var(--muted-foreground)]">
+                    「必須」の項目を入力してください
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={closeWriteForm}
@@ -477,13 +516,15 @@ export default function Home() {
                     htmlFor="municipality"
                     className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
                   >
-                    市町村 *
+                    市町村 <RequirementBadge required />
                   </label>
                   <select
                     id="municipality"
+                    aria-invalid={showRequiredErrors && missingRequiredFields.municipality}
+                    aria-describedby={showRequiredErrors && missingRequiredFields.municipality ? "municipality-error" : undefined}
                     value={municipalityId}
                     onChange={(e) => handleMunicipalityChange(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)]"
                   >
                     <option value="" disabled>
                       先に市町村を選択してください
@@ -494,17 +535,24 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
+                  {showRequiredErrors && missingRequiredFields.municipality && (
+                    <p id="municipality-error" className="mt-1 text-xs font-medium text-red-600">
+                      市町村を選択してください
+                    </p>
+                  )}
                 </div>
                 <div className="relative">
                   <label
                     htmlFor="store-name"
                     className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
                   >
-                    店舗名 *
+                    店舗名 <RequirementBadge required />
                   </label>
                   <input
                     id="store-name"
                     type="text"
+                    aria-invalid={showRequiredErrors && missingRequiredFields.store}
+                    aria-describedby={showRequiredErrors && missingRequiredFields.store ? "store-name-error" : undefined}
                     placeholder={
                       municipalityId === ""
                         ? "先に市町村を選択してください"
@@ -516,8 +564,13 @@ export default function Home() {
                     onBlur={() => setIsStoreInputFocused(false)}
                     disabled={municipalityId === ""}
                     autoComplete="off"
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)] disabled:cursor-not-allowed disabled:opacity-50"
                   />
+                  {showRequiredErrors && missingRequiredFields.store && (
+                    <p id="store-name-error" className="mt-1 text-xs font-medium text-red-600">
+                      店舗名を入力してください
+                    </p>
+                  )}
                   {isStoreInputFocused && normalizedStoreName && storeSuggestions.length > 0 && (
                     <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[color:var(--border)] bg-white shadow-lg">
                       {storeSuggestions.map((store) => (
@@ -551,7 +604,7 @@ export default function Home() {
                     htmlFor="department-name"
                     className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
                   >
-                    部署（任意）
+                    部署 <RequirementBadge required={false} />
                   </label>
                   <input
                     id="department-name"
@@ -592,12 +645,18 @@ export default function Home() {
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">総合評価</p>
-                  <div className="flex gap-2">
+                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">
+                    総合評価 <RequirementBadge required />
+                  </p>
+                  <div className="flex gap-2" role="group" aria-label="総合評価">
                     {[1, 2, 3, 4, 5].map((s) => (
                       <button
                         key={s}
+                        id={s === 1 ? "rating-1" : undefined}
                         type="button"
+                        aria-label={`${s}つ星`}
+                        aria-pressed={rating === s}
+                        aria-describedby={s === 1 && showRequiredErrors && missingRequiredFields.rating ? "rating-error" : undefined}
                         onClick={() => setRating(s)}
                         className="text-2xl transition-colors"
                         style={{ color: s <= rating ? "#ffce00" : "var(--border)" }}
@@ -606,13 +665,23 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
+                  {showRequiredErrors && missingRequiredFields.rating && (
+                    <p id="rating-error" className="mt-1 text-xs font-medium text-red-600">
+                      総合評価を選択してください
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">大学生バイトの人数</p>
+                  <label htmlFor="number-of-people" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
+                    大学生バイトの人数 <RequirementBadge required />
+                  </label>
                   <select
+                    id="number-of-people"
+                    aria-invalid={showRequiredErrors && missingRequiredFields.numberOfPeople}
+                    aria-describedby={showRequiredErrors && missingRequiredFields.numberOfPeople ? "number-of-people-error" : undefined}
                     value={numberOfPeople}
                     onChange={(e) => setNumberOfPeople(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)]"
                   >
                     <option value="" disabled>
                       選択してください
@@ -623,13 +692,23 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
+                  {showRequiredErrors && missingRequiredFields.numberOfPeople && (
+                    <p id="number-of-people-error" className="mt-1 text-xs font-medium text-red-600">
+                      大学生バイトの人数を選択してください
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">求人募集状況</p>
+                  <label htmlFor="recruiting" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
+                    求人募集状況 <RequirementBadge required />
+                  </label>
                   <select
+                    id="recruiting"
+                    aria-invalid={showRequiredErrors && missingRequiredFields.recruiting}
+                    aria-describedby={showRequiredErrors && missingRequiredFields.recruiting ? "recruiting-error" : undefined}
                     value={recruiting}
                     onChange={(e) => setRecruiting(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)]"
                   >
                     <option value="" disabled>
                       選択してください
@@ -640,9 +719,16 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
+                  {showRequiredErrors && missingRequiredFields.recruiting && (
+                    <p id="recruiting-error" className="mt-1 text-xs font-medium text-red-600">
+                      求人募集状況を選択してください
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">業務内容（任意）</p>
+                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">
+                    業務内容 <RequirementBadge required={false} />
+                  </p>
                   <textarea
                     rows={3}
                     placeholder="実際に担当した業務内容を教えてください"
@@ -652,14 +738,24 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">求人情報とのギャップ *</p>
+                  <label htmlFor="job-gap" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
+                    求人情報とのギャップ <RequirementBadge required />
+                  </label>
                   <textarea
+                    id="job-gap"
+                    aria-invalid={showRequiredErrors && missingRequiredFields.jobGap}
+                    aria-describedby={showRequiredErrors && missingRequiredFields.jobGap ? "job-gap-error" : undefined}
                     rows={3}
                     placeholder="求人サイトの情報と実際の業務で感じた違いを教えてください"
                     value={jobGap}
                     onChange={(e) => setJobGap(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)] resize-none"
                   />
+                  {showRequiredErrors && missingRequiredFields.jobGap && (
+                    <p id="job-gap-error" className="mt-1 text-xs font-medium text-red-600">
+                      求人情報とのギャップを入力してください
+                    </p>
+                  )}
                 </div>
                 {submitError && <p className="text-sm text-red-600">{submitError}</p>}
                 <button
