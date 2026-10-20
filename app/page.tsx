@@ -457,7 +457,7 @@ export default function Home() {
           onClick={closeWriteForm}
         >
           <div
-            className="bg-[color:var(--card)] rounded-3xl w-full max-w-lg shadow-2xl"
+            className="bg-[color:var(--card)] rounded-3xl w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <form onSubmit={handleWriteSubmit} className="p-6">
