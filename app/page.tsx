@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "./theme";
+import IndustrySelect, { type Industry } from "./components/IndustrySelect";
+import SearchFilters from "./components/SearchFilters";
 
 type Department = { id: number; name: string };
 type Store = {
@@ -13,6 +15,7 @@ type Store = {
   name: string;
   reviewCount: number;
   municipalityId: number | null;
+  industryId: number | null;
   isRecruiting: boolean | null;
 };
 type Municipality = { id: number; name: string };
@@ -29,6 +32,7 @@ export default function Home() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [search, setSearch] = useState("");
   const [filterMunicipalityId, setFilterMunicipalityId] = useState("");
+  const [filterIndustryId, setFilterIndustryId] = useState("");
   const [
     filterRecruiting, setFilterRecruiting] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
@@ -37,6 +41,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [industryLoadError, setIndustryLoadError] = useState<string | null>(null);
 
   const [storeName, setStoreName] = useState("");
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
@@ -47,6 +53,7 @@ export default function Home() {
   const [isDepartmentInputFocused, setIsDepartmentInputFocused] = useState(false);
   const [departmentLoadError, setDepartmentLoadError] = useState<string | null>(null);
   const [municipalityId, setMunicipalityId] = useState("");
+  const [industryId, setIndustryId] = useState("");
   const [rating, setRating] = useState(0);
   const [numberOfPeople, setNumberOfPeople] = useState("");
   const [recruiting, setRecruiting] = useState("");
@@ -59,12 +66,20 @@ export default function Home() {
     setLoading(true);
 
     const [storeResult, reviewResult] = await Promise.all([
-      supabase.from("store").select("id, name, munisipality_id, is_recruiting"),
+      supabase
+        .from("store")
+        .select("id, name, munisipality_id, type_of_industry_id, is_recruiting"),
       supabase.from("review").select("store_id"),
     ]);
 
     if (storeResult.error) {
       setError(storeResult.error.message);
+      setLoading(false);
+      return;
+    }
+
+    if (reviewResult.error) {
+      setError(reviewResult.error.message);
       setLoading(false);
       return;
     }
@@ -82,6 +97,10 @@ export default function Home() {
       municipalityId:
         row.munisipality_id !== null && row.munisipality_id !== undefined
           ? Number(row.munisipality_id)
+          : null,
+      industryId:
+        row.type_of_industry_id !== null && row.type_of_industry_id !== undefined
+          ? Number(row.type_of_industry_id)
           : null,
       isRecruiting:
         row.is_recruiting === null || row.is_recruiting === undefined
@@ -127,8 +146,29 @@ export default function Home() {
       );
     }
 
+    async function loadIndustries() {
+      const { data, error } = await supabase
+        .from("type_of_industry")
+        .select("id, name, description")
+        .order("id");
+
+      if (error) {
+        setIndustryLoadError(error.message);
+        return;
+      }
+
+      setIndustries(
+        (data ?? []).map((row) => ({
+          id: Number(row.id),
+          name: row.name as string,
+          description: (row.description as string | null) ?? null,
+        })),
+      );
+    }
+
     void loadDepartments();
     void loadMunicipalities();
+    void loadIndustries();
   }, []);
 
   const filtered = stores.filter((s) => {
@@ -136,12 +176,15 @@ export default function Home() {
     const matchesMunicipality =
       filterMunicipalityId === "" ||
       s.municipalityId === Number(filterMunicipalityId);
+    const matchesIndustry =
+      filterIndustryId === "" ||
+      s.industryId === Number(filterIndustryId);
     const matchesRecruiting =
       filterRecruiting === "" ||
       (filterRecruiting === "true"
         ? s.isRecruiting === true
         : s.isRecruiting !== true);
-    return matchesSearch && matchesMunicipality && matchesRecruiting;
+    return matchesSearch && matchesMunicipality && matchesIndustry && matchesRecruiting;
   });
   const normalizedStoreName = storeName.trim();
   const normalizedStoreSearchTerm = normalizeValueForSearch(storeName);
@@ -154,6 +197,10 @@ export default function Home() {
       normalizeValueForSearch(store.name).includes(normalizedStoreSearchTerm),
     )
     .slice(0, 5);
+  // 業種は店舗の属性。登録済みの店舗を選んだ場合は店舗側の値を使い、変更させない
+  const selectedStore =
+    selectedStoreId === null ? undefined : stores.find((store) => store.id === selectedStoreId);
+  const isIndustryLocked = selectedStore !== undefined && selectedStore.industryId !== null;
   const normalizedDepartmentName = departmentName.trim();
   const normalizedDepartmentSearchTerm = normalizeValueForSearch(departmentName);
   const departmentSuggestions = departments
@@ -181,6 +228,7 @@ export default function Home() {
     setSelectedDepartmentId(null);
     setIsDepartmentInputFocused(false);
     setMunicipalityId("");
+    setIndustryId("");
     setRating(0);
     setNumberOfPeople("");
     setRecruiting("");
@@ -190,12 +238,14 @@ export default function Home() {
   }
 
   function handleMunicipalityChange(value: string) {
+    if (isIndustryLocked) setIndustryId("");
     setMunicipalityId(value);
     setStoreName("");
     setSelectedStoreId(null);
   }
 
   function handleStoreNameChange(value: string) {
+    if (isIndustryLocked) setIndustryId("");
     setStoreName(value);
     setSelectedStoreId(null);
   }
@@ -204,6 +254,7 @@ export default function Home() {
     setStoreName(store.name);
     setSelectedStoreId(store.id);
     setIsStoreInputFocused(false);
+    if (store.industryId !== null) setIndustryId(String(store.industryId));
   }
 
   function handleDepartmentNameChange(value: string) {
@@ -219,8 +270,18 @@ export default function Home() {
 
   async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!municipalityId || !normalizedStoreName || rating === 0 || !numberOfPeople || !recruiting || !jobGap) {
-      setSubmitError("市町村・店舗名・総合評価・人数・求人募集状況・求人情報とのギャップを入力してください。");
+    if (
+      !municipalityId ||
+      !normalizedStoreName ||
+      !industryId ||
+      rating === 0 ||
+      !numberOfPeople ||
+      !recruiting ||
+      !jobGap
+    ) {
+      setSubmitError(
+        "市町村・店舗名・業種・総合評価・人数・求人募集状況・求人情報とのギャップを入力してください。",
+      );
       return;
     }
 
@@ -230,6 +291,7 @@ export default function Home() {
     setSubmitError(null);
 
     let storeId = selectedStoreId;
+    let existingStore = selectedStore;
     let departmentId = selectedDepartmentId;
 
     if (storeId === null) {
@@ -241,10 +303,15 @@ export default function Home() {
 
       if (matchingStore) {
         storeId = matchingStore.id;
+        existingStore = matchingStore;
       } else {
         const { data: createdStore, error: createStoreError } = await supabase
           .from("store")
-          .insert({ name: normalizedStoreName, munisipality_id: Number(municipalityId) })
+          .insert({
+            name: normalizedStoreName,
+            munisipality_id: Number(municipalityId),
+            type_of_industry_id: Number(industryId),
+          })
           .select("id")
           .maybeSingle();
 
@@ -290,15 +357,23 @@ export default function Home() {
       }
     }
 
-    // 投稿内容に合わせて店舗の求人募集状況を更新（募集中のみ true）
-    const { error: updateRecruitingError } = await supabase
+    // 投稿内容に合わせて店舗の求人募集状況を更新（募集中のみ true）。
+    // 既存店舗で業種が未登録の場合のみ、選択した業種も店舗に登録する
+    const storeUpdate: { is_recruiting: boolean; type_of_industry_id?: number } = {
+      is_recruiting: isRecruiting,
+    };
+    if (existingStore !== undefined && existingStore.industryId === null) {
+      storeUpdate.type_of_industry_id = Number(industryId);
+    }
+
+    const { error: updateStoreError } = await supabase
       .from("store")
-      .update({ is_recruiting: isRecruiting })
+      .update(storeUpdate)
       .eq("id", storeId);
 
-    if (updateRecruitingError) {
+    if (updateStoreError) {
       setSubmitting(false);
-      setSubmitError(updateRecruitingError.message);
+      setSubmitError(updateStoreError.message);
       return;
     }
 
@@ -356,48 +431,19 @@ export default function Home() {
         </header>
 
         {/* Search */}
-        <section className="pb-10">
-          <div className="max-w-3xl mx-auto px-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
-            <form onSubmit={handleSearchSubmit} className="flex min-w-0 flex-1 basis-full gap-2 bg-white rounded-2xl p-2 shadow-lg sm:basis-auto">
-              <input
-                type="text"
-                placeholder="店舗名で検索..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="min-w-0 flex-1 px-3 py-2 text-[color:var(--foreground)] text-sm font-medium outline-none bg-transparent placeholder:text-[color:var(--muted-foreground)]"
-              />
-              <button
-                type="submit"
-                className="bg-[color:var(--primary)] text-white font-bold px-5 py-2.5 rounded-xl text-sm hover:opacity-90 transition-opacity shrink-0"
-              >
-                検索
-              </button>
-            </form>
-            <select
-              value={filterMunicipalityId}
-              onChange={(e) => setFilterMunicipalityId(e.target.value)}
-              aria-label="市町村で絞り込み"
-              className="rounded-2xl bg-white p-3 text-sm font-bold text-[color:var(--foreground)] shadow-lg outline-none shrink-0"
-            >
-              <option value="">すべての市町村</option>
-              {municipalities.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filterRecruiting}
-              onChange={(e) => setFilterRecruiting(e.target.value)}
-              aria-label="募集状況で絞り込み"
-              className="rounded-2xl bg-white p-3 text-sm font-bold text-[color:var(--foreground)] shadow-lg outline-none shrink-0"
-            >
-              <option value="">すべての募集状況</option>
-              <option value="true">募集中のみ</option>
-              <option value="false">募集なし・不明</option>
-            </select>
-          </div>
-        </section>
+        <SearchFilters
+          search={search}
+          onSearchChange={setSearch}
+          onSearchSubmit={handleSearchSubmit}
+          municipalities={municipalities}
+          filterMunicipalityId={filterMunicipalityId}
+          onMunicipalityChange={setFilterMunicipalityId}
+          industries={industries}
+          filterIndustryId={filterIndustryId}
+          onIndustryChange={setFilterIndustryId}
+          filterRecruiting={filterRecruiting}
+          onRecruitingChange={setFilterRecruiting}
+        />
       </div>
 
       {/* Store Cards */}
@@ -545,6 +591,36 @@ export default function Home() {
                       選択した市町村内の店舗から候補を表示します。
                     </p>
                   ) : null}
+                </div>
+                <div>
+                  <label
+                    htmlFor="industry"
+                    className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]"
+                  >
+                    業種 *
+                  </label>
+                  <IndustrySelect
+                    id="industry"
+                    value={industryId}
+                    onChange={setIndustryId}
+                    industries={industries}
+                    placeholder="選択してください"
+                    ariaLabel="業種"
+                    disabled={isIndustryLocked}
+                    triggerClassName="px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                  />
+                  {isIndustryLocked ? (
+                    <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">
+                      この店舗の業種はすでに登録されています。
+                    </p>
+                  ) : selectedStore !== undefined ? (
+                    <p className="mt-2 text-xs text-[color:var(--muted-foreground)]">
+                      この店舗の業種は未登録です。選択すると店舗に登録されます。
+                    </p>
+                  ) : null}
+                  {industryLoadError && (
+                    <p className="mt-2 text-xs text-red-600">業種の取得に失敗しました: {industryLoadError}</p>
+                  )}
                 </div>
                 <div className="relative">
                   <label
