@@ -15,7 +15,7 @@ type Store = {
   reviewCount: number;
   averageRating: number | null;
   municipalityId: number | null;
-  isRecruiting: boolean | null;
+  recruitingStatus: string | null;
 };
 type Municipality = { id: number; name: string };
 
@@ -43,7 +43,7 @@ function RequirementBadge({ required }: { required: boolean }) {
 async function loadStoreRows(): Promise<Store[]> {
   const { data, error } = await supabase
     .from("store")
-    .select("id, name, munisipality_id, average, review_count, is_recruiting");
+    .select("id, name, munisipality_id, average, review_count, recruiting_status");
 
   if (error) throw error;
 
@@ -56,10 +56,10 @@ async function loadStoreRows(): Promise<Store[]> {
       row.munisipality_id !== null && row.munisipality_id !== undefined
         ? Number(row.munisipality_id)
         : null,
-    isRecruiting:
-      row.is_recruiting === null || row.is_recruiting === undefined
+    recruitingStatus:
+      row.recruiting_status === null || row.recruiting_status === undefined
         ? null
-        : Boolean(row.is_recruiting),
+        : (row.recruiting_status as string),
   }));
 }
 
@@ -145,10 +145,7 @@ export default function Home() {
       filterMunicipalityId === "" ||
       s.municipalityId === Number(filterMunicipalityId);
     const matchesRecruiting =
-      filterRecruiting === "" ||
-      (filterRecruiting === "true"
-        ? s.isRecruiting === true
-        : s.isRecruiting !== true);
+      filterRecruiting === "" || s.recruitingStatus === filterRecruiting;
     return matchesSearch && matchesMunicipality && matchesRecruiting;
   });
   const normalizedStoreName = storeName.trim();
@@ -251,8 +248,6 @@ export default function Home() {
       return;
     }
 
-    const isRecruiting = recruiting === "募集中";
-
     setSubmitting(true);
     setSubmitError(null);
 
@@ -317,10 +312,10 @@ export default function Home() {
       }
     }
 
-    // 投稿内容に合わせて店舗の求人募集状況を更新（募集中のみ true）
+    // 投稿内容に合わせて店舗の求人募集状況を更新（募集中/募集していない/不明）
     const { error: updateRecruitingError } = await supabase
       .from("store")
-      .update({ is_recruiting: isRecruiting })
+      .update({ recruiting_status: recruiting })
       .eq("id", storeId);
 
     if (updateRecruitingError) {
@@ -428,8 +423,11 @@ export default function Home() {
               className="rounded-2xl bg-white p-3 text-sm font-bold text-[color:var(--foreground)] shadow-lg outline-none shrink-0"
             >
               <option value="">すべての募集状況</option>
-              <option value="true">募集中のみ</option>
-              <option value="false">募集なし・不明</option>
+              {RECRUITING_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
           </div>
         </section>
@@ -466,13 +464,17 @@ export default function Home() {
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <p className="font-bold text-lg">{s.name}</p>
-                  {s.isRecruiting === true ? (
+                  {s.recruitingStatus === "募集中" ? (
                     <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
                       募集中
                     </span>
+                  ) : s.recruitingStatus === "募集していない" ? (
+                    <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">
+                      募集していない
+                    </span>
                   ) : (
                     <span className="shrink-0 rounded-full bg-[color:var(--background)] px-2 py-0.5 text-xs font-bold text-[color:var(--muted-foreground)]">
-                      {s.isRecruiting === false ? "募集なし" : "情報なし"}
+                      {s.recruitingStatus === "不明" ? "不明" : "情報なし"}
                     </span>
                   )}
                 </div>
