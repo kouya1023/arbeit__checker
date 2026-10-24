@@ -139,15 +139,22 @@ export default function Home() {
     void loadMunicipalities();
   }, []);
 
-  const filtered = stores.filter((s) => {
-    const matchesSearch = search === "" || s.name.includes(search);
-    const matchesMunicipality =
-      filterMunicipalityId === "" ||
-      s.municipalityId === Number(filterMunicipalityId);
-    const matchesRecruiting =
-      filterRecruiting === "" || s.recruitingStatus === filterRecruiting;
-    return matchesSearch && matchesMunicipality && matchesRecruiting;
-  });
+  const filtered = stores
+    .filter((s) => {
+      const matchesSearch = search === "" || s.name.includes(search);
+      const matchesMunicipality =
+        filterMunicipalityId === "" ||
+        s.municipalityId === Number(filterMunicipalityId);
+      const matchesRecruiting =
+        filterRecruiting === "" || s.recruitingStatus === filterRecruiting;
+      return matchesSearch && matchesMunicipality && matchesRecruiting;
+    })
+    // 募集中の店舗を上位に表示（それ以外は元の並び順を維持）
+    .sort((a, b) => {
+      const aTop = a.recruitingStatus === "募集中" ? 0 : 1;
+      const bTop = b.recruitingStatus === "募集中" ? 0 : 1;
+      return aTop - bTop;
+    });
   const normalizedStoreName = storeName.trim();
   const missingRequiredFields = {
     municipality: !municipalityId,
