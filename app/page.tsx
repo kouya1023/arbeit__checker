@@ -38,6 +38,8 @@ function RequirementBadge({ required }: { required: boolean }) {
       {required ? "必須" : "任意"}
     </span>
   );
+}
+
 async function loadStoreRows(): Promise<Store[]> {
   const { data, error } = await supabase
     .from("store")
