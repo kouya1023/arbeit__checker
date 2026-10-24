@@ -12,6 +12,7 @@ type Store = {
   id: number;
   name: string;
   reviewCount: number;
+  averageRating: number | null;
   municipalityId: number | null;
   isRecruiting: boolean | null;
 };
@@ -24,13 +25,35 @@ function normalizeValueForSearch(value: string) {
   return value.replace(/\s/g, "").trim();
 }
 
+async function loadStoreRows(): Promise<Store[]> {
+  const { data, error } = await supabase
+    .from("store")
+    .select("id, name, munisipality_id, average, review_count, is_recruiting");
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    id: Number(row.id),
+    name: row.name as string,
+    reviewCount: Number(row.review_count) || 0,
+    averageRating: Number(row.review_count) === 0 ? null : Number(row.average),
+    municipalityId:
+      row.munisipality_id !== null && row.munisipality_id !== undefined
+        ? Number(row.munisipality_id)
+        : null,
+    isRecruiting:
+      row.is_recruiting === null || row.is_recruiting === undefined
+        ? null
+        : Boolean(row.is_recruiting),
+  }));
+}
+
 export default function Home() {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [search, setSearch] = useState("");
   const [filterMunicipalityId, setFilterMunicipalityId] = useState("");
-  const [
-    filterRecruiting, setFilterRecruiting] = useState("");
+  const [filterRecruiting, setFilterRecruiting] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,45 +78,14 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  async function fetchStores() {
-    setLoading(true);
-
-    const [storeResult, reviewResult] = await Promise.all([
-      supabase.from("store").select("id, name, munisipality_id, is_recruiting"),
-      supabase.from("review").select("store_id"),
-    ]);
-
-    if (storeResult.error) {
-      setError(storeResult.error.message);
-      setLoading(false);
-      return;
-    }
-
-    const countByStoreId = new Map<number, number>();
-    for (const row of reviewResult.data ?? []) {
-      const id = Number(row.store_id);
-      countByStoreId.set(id, (countByStoreId.get(id) ?? 0) + 1);
-    }
-
-    const rows = (storeResult.data ?? []).map((row) => ({
-      id: Number(row.id),
-      name: row.name as string,
-      reviewCount: countByStoreId.get(Number(row.id)) ?? 0,
-      municipalityId:
-        row.munisipality_id !== null && row.munisipality_id !== undefined
-          ? Number(row.munisipality_id)
-          : null,
-      isRecruiting:
-        row.is_recruiting === null || row.is_recruiting === undefined
-          ? null
-          : Boolean(row.is_recruiting),
-    }));
-    setStores(rows);
-    setLoading(false);
-  }
-
   useEffect(() => {
-    fetchStores();
+    void loadStoreRows()
+      .then((rows) => {
+        setStores(rows);
+        setError(null);
+      })
+      .catch((error: Error) => setError(error.message))
+      .finally(() => setLoading(false));
     async function loadDepartments() {
       const { data, error } = await supabase
         .from("department")
@@ -319,7 +311,15 @@ export default function Home() {
     }
 
     closeWriteForm();
-    fetchStores();
+    setLoading(true);
+    try {
+      setStores(await loadStoreRows());
+      setError(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "店舗一覧の取得に失敗しました");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -442,7 +442,9 @@ export default function Home() {
                   )}
                 </div>
                 <p className="text-sm font-bold text-[color:var(--muted-foreground)]">
-                  {s.reviewCount}件の口コミ
+                  {s.averageRating === null
+                    ? "評価なし"
+                    : `★ ${s.averageRating.toFixed(1)}（${s.reviewCount}件）`}
                 </p>
               </Link>
             ))}
