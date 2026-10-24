@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "./theme";
+import StarRating from "./components/StarRating";
 
 type Department = { id: number; name: string };
 type Store = {
@@ -441,11 +442,18 @@ export default function Home() {
                     </span>
                   )}
                 </div>
-                <p className="text-sm font-bold text-[color:var(--muted-foreground)]">
-                  {s.averageRating === null
-                    ? "評価なし"
-                    : `★ ${s.averageRating.toFixed(1)}（${s.reviewCount}件）`}
-                </p>
+                {s.averageRating === null ? (
+                  <p className="text-sm font-bold text-[color:var(--muted-foreground)]">
+                    評価なし
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <StarRating value={s.averageRating} />
+                    <span className="text-sm font-bold text-[color:var(--muted-foreground)]">
+                      {s.averageRating.toFixed(1)}（{s.reviewCount}件）
+                    </span>
+                  </div>
+                )}
               </Link>
             ))}
           </div>
