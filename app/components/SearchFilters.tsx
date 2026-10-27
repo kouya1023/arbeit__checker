@@ -1,6 +1,7 @@
 "use client";
 
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
+import DropdownSelect from "./DropdownSelect";
 import IndustrySelect, { type Industry } from "./IndustrySelect";
 
 type Municipality = { id: number; name: string };
@@ -22,36 +23,10 @@ type Props = {
 const CONTROL_CLASS =
   "h-12 w-full rounded-2xl bg-white px-4 text-sm font-bold text-[color:var(--foreground)] shadow-lg outline-none";
 
-function FilterSelect({
-  value,
-  onChange,
-  ariaLabel,
-  children,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  ariaLabel: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={ariaLabel}
-        className={`${CONTROL_CLASS} appearance-none pr-10`}
-      >
-        {children}
-      </select>
-      <span
-        aria-hidden
-        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[color:var(--foreground)]"
-      >
-        ▾
-      </span>
-    </div>
-  );
-}
+const RECRUITING_FILTER_OPTIONS = [
+  { value: "true", label: "募集中のみ" },
+  { value: "false", label: "募集なし・不明" },
+];
 
 export default function SearchFilters({
   search,
@@ -89,18 +64,14 @@ export default function SearchFilters({
         </form>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <FilterSelect
+          <DropdownSelect
             value={filterMunicipalityId}
             onChange={onMunicipalityChange}
+            options={municipalities.map((m) => ({ value: String(m.id), label: m.name }))}
+            allLabel="すべての市町村"
             ariaLabel="市町村で絞り込み"
-          >
-            <option value="">すべての市町村</option>
-            {municipalities.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </FilterSelect>
+            triggerClassName={CONTROL_CLASS}
+          />
           <IndustrySelect
             value={filterIndustryId}
             onChange={onIndustryChange}
@@ -109,15 +80,14 @@ export default function SearchFilters({
             ariaLabel="業種で絞り込み"
             triggerClassName={CONTROL_CLASS}
           />
-          <FilterSelect
+          <DropdownSelect
             value={filterRecruiting}
             onChange={onRecruitingChange}
+            options={RECRUITING_FILTER_OPTIONS}
+            allLabel="すべての募集状況"
             ariaLabel="募集状況で絞り込み"
-          >
-            <option value="">すべての募集状況</option>
-            <option value="true">募集中のみ</option>
-            <option value="false">募集なし・不明</option>
-          </FilterSelect>
+            triggerClassName={CONTROL_CLASS}
+          />
         </div>
       </div>
     </section>
