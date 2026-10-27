@@ -376,6 +376,12 @@ export default function Home() {
             className="shrink-0"
           />
           <div className="flex items-center gap-2">
+            <Link
+              href="/map"
+              className="border border-white/30 text-white text-sm font-bold px-4 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+            >
+              マップから店を探す
+            </Link>
             <button
               onClick={() => setShowWriteForm(true)}
               className="bg-[color:var(--primary)] text-white text-sm font-bold px-4 py-1.5 rounded-full hover:opacity-90 transition-opacity"
