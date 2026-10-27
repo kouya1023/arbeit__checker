@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 export type MapStore = {
   id: number;
   name: string;
+  municipalityId: number | null;
   address: string;
   lat: number;
   lng: number;
@@ -14,7 +15,16 @@ export type MapStore = {
 
 const JAPAN_CENTER: L.LatLngTuple = [36.2, 138.25];
 
-export default function StoreMap({ stores }: { stores: MapStore[] }) {
+// 市町村の中心から上下左右にこの度数ぶんを最低限映す（約4km）
+const FOCUS_MARGIN = 0.04;
+
+export default function StoreMap({
+  stores,
+  focus,
+}: {
+  stores: MapStore[];
+  focus: { lat: number; lng: number } | null;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -64,13 +74,20 @@ export default function StoreMap({ stores }: { stores: MapStore[] }) {
         .addTo(layer);
     }
 
-    if (stores.length > 0) {
-      map.fitBounds(L.latLngBounds(stores.map((s) => [s.lat, s.lng])), {
-        padding: [40, 40],
-        maxZoom: 15,
-      });
+    // 市町村が選ばれていればその中心周辺を、店舗があればそれも含めて映す
+    const points: L.LatLngTuple[] = stores.map((s) => [s.lat, s.lng]);
+    if (focus) {
+      points.push(
+        [focus.lat - FOCUS_MARGIN, focus.lng - FOCUS_MARGIN],
+        [focus.lat + FOCUS_MARGIN, focus.lng + FOCUS_MARGIN],
+      );
     }
-  }, [stores]);
+    if (points.length === 0) {
+      map.setView(JAPAN_CENTER, 5);
+    } else {
+      map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 15 });
+    }
+  }, [stores, focus]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }

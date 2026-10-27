@@ -2,9 +2,10 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { geocodeAddresses } from "@/lib/geocode";
+import { geocodeAddresses, type LatLng } from "@/lib/geocode";
 import { THEME, outfit } from "../theme";
 import type { MapStore } from "./StoreMap";
 
@@ -33,7 +34,7 @@ async function loadMapStores(): Promise<{ stores: MapStore[]; failed: number }> 
 
   const { data: storeRows, error: storeError } = await supabase
     .from("store")
-    .select("id, name")
+    .select("id, name, munisipality_id")
     .in("id", [...addressByStore.keys()]);
   if (storeError) throw storeError;
 
@@ -45,7 +46,13 @@ async function loadMapStores(): Promise<{ stores: MapStore[]; failed: number }> 
     const address = addressByStore.get(Number(row.id));
     const point = address ? points.get(address) : undefined;
     if (address && point) {
-      stores.push({ id: Number(row.id), name: row.name as string, address, ...point });
+      stores.push({
+        id: Number(row.id),
+        name: row.name as string,
+        municipalityId: row.munisipality_id == null ? null : Number(row.munisipality_id),
+        address,
+        ...point,
+      });
     } else {
       failed++;
     }
@@ -53,8 +60,14 @@ async function loadMapStores(): Promise<{ stores: MapStore[]; failed: number }> 
   return { stores, failed };
 }
 
-export default function MapPage() {
-  const [stores, setStores] = useState<MapStore[]>([]);
+type Municipality = { id: number; name: string };
+
+function MapContent() {
+  const [filterMunicipalityId, setFilterMunicipalityId] = useState(
+    useSearchParams().get("municipality") ?? "",
+  );
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [allStores, setAllStores] = useState<MapStore[]>([]);
   const [failed, setFailed] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +75,50 @@ export default function MapPage() {
   useEffect(() => {
     loadMapStores()
       .then((result) => {
-        setStores(result.stores);
+        setAllStores(result.stores);
         setFailed(result.failed);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "店舗情報の取得に失敗しました"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    supabase
+      .from("municipality")
+      .select("id, name")
+      .order("id")
+      .then(({ data }) =>
+        setMunicipalities((data ?? []).map((m) => ({ id: Number(m.id), name: m.name as string }))),
+      );
+  }, []);
+
+  // 選択中の市町村の中心を求めて、地図をその市町村にズームさせる
+  const [focusResult, setFocusResult] = useState<{ name: string; point: LatLng | null } | null>(
+    null,
+  );
+  const selectedName = municipalities.find((m) => String(m.id) === filterMunicipalityId)?.name;
+  useEffect(() => {
+    if (!selectedName) return;
+    let cancelled = false;
+    const query = `沖縄県${selectedName}`;
+    geocodeAddresses([query]).then((points) => {
+      if (!cancelled) setFocusResult({ name: selectedName, point: points.get(query) ?? null });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedName]);
+
+  const focus = focusResult && focusResult.name === selectedName ? focusResult.point : null;
+
+  // 市町村で絞り込む。絞り込み結果に合わせて地図の表示範囲（ズーム）も変わる
+  const stores = useMemo(
+    () =>
+      filterMunicipalityId === ""
+        ? allStores
+        : allStores.filter((s) => s.municipalityId === Number(filterMunicipalityId)),
+    [allStores, filterMunicipalityId],
+  );
 
   return (
     <div
@@ -75,9 +126,24 @@ export default function MapPage() {
       style={THEME}
     >
       <header className="flex items-center justify-between gap-3 bg-[color:var(--secondary)] px-5 py-3 text-white">
-        <Link href="/" className="text-sm font-bold hover:underline">
+        <Link
+          href={filterMunicipalityId ? `/?municipality=${filterMunicipalityId}` : "/"}
+          className="text-sm font-bold hover:underline">
           ← 店舗一覧に戻る
         </Link>
+        <select
+          value={filterMunicipalityId}
+          onChange={(e) => setFilterMunicipalityId(e.target.value)}
+          aria-label="市町村で絞り込み"
+          className="rounded-full bg-white px-3 py-1 text-sm font-bold text-[color:var(--foreground)] outline-none"
+        >
+          <option value="">すべての市町村</option>
+          {municipalities.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
         <p className="text-sm font-bold">
           {loading ? "住所を検索中..." : `${stores.length}件の店舗を表示`}
           {failed > 0 && `（位置不明 ${failed}件）`}
@@ -87,9 +153,17 @@ export default function MapPage() {
         <p className="p-6 text-center text-red-700">{error}</p>
       ) : (
         <main className="min-h-0 flex-1">
-          <StoreMap stores={stores} />
+          <StoreMap stores={stores} focus={focus} />
         </main>
       )}
     </div>
+  );
+}
+
+export default function MapPage() {
+  return (
+    <Suspense>
+      <MapContent />
+    </Suspense>
   );
 }
