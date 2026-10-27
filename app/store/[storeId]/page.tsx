@@ -1,12 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { formatReviewDate } from "@/lib/formatReviewDate";
+import { geocodeAddresses } from "@/lib/geocode";
 import { THEME, outfit } from "../../theme";
 import StarRating from "../../components/StarRating";
+import type { MapStore } from "../../map/StoreMap";
+
+// Leaflet は window を参照するため SSR しない
+const StoreMap = dynamic(() => import("../../map/StoreMap"), { ssr: false });
 
 type ReviewSummary = { id: number; rating: number; numberOfPeople: string; createdAt: string | null };
 
@@ -16,6 +22,7 @@ export default function StoreReviewListPage() {
 
   const [storeName, setStoreName] = useState<string | null>(null);
   const [municipalityName, setMunicipalityName] = useState<string | null>(null);
+  const [mapStore, setMapStore] = useState<MapStore | null>(null);
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +35,7 @@ export default function StoreReviewListPage() {
         supabase.from("store").select("name, munisipality_id").eq("id", storeId).maybeSingle(),
         supabase
           .from("review")
-          .select("id, stage_evaluation, number_of_people, created_at")
+          .select("id, stage_evaluation, number_of_people, created_at, adress")
           .eq("store_id", storeId),
       ]);
 
@@ -58,6 +65,23 @@ export default function StoreReviewListPage() {
         }))
       );
       setLoading(false);
+
+      // 口コミに登録された住所のうち最初のものを緯度経度に変換して地図に出す
+      const address = (reviewResult.data ?? [])
+        .map((row) => ((row.adress as string | null) ?? "").trim())
+        .find(Boolean);
+      if (address && storeResult.data) {
+        const point = (await geocodeAddresses([address])).get(address);
+        if (point) {
+          setMapStore({
+            id: Number(storeId),
+            name: storeResult.data.name as string,
+            municipalityId: null,
+            address,
+            ...point,
+          });
+        }
+      }
     }
 
     fetchData();
@@ -65,7 +89,7 @@ export default function StoreReviewListPage() {
 
   return (
     <div
-      className={`min-h-screen flex-1 bg-[color:var(--background)] text-[color:var(--foreground)] ${outfit.className}`}
+      className={`flex min-h-screen flex-1 flex-col bg-[color:var(--background)] text-[color:var(--foreground)] ${outfit.className}`}
       style={THEME}
     >
       <header className="bg-[color:var(--secondary)]">
@@ -87,7 +111,7 @@ export default function StoreReviewListPage() {
         </div>
       </header>
 
-      <section className="max-w-6xl mx-auto px-5 py-10">
+      <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 py-10">
         <p className="text-sm text-[color:var(--muted-foreground)] mb-5">
           {loading ? "読み込み中..." : `${reviews.length}件の口コミ`}
         </p>
@@ -126,6 +150,16 @@ export default function StoreReviewListPage() {
                 </p>
               </Link>
             ))}
+          </div>
+        )}
+
+        {mapStore && (
+          <div className="mt-auto pt-10">
+            <h2 className="mb-3 text-lg font-black">店舗の場所</h2>
+            <p className="mb-3 text-sm text-[color:var(--muted-foreground)]">{mapStore.address}</p>
+            <div className="h-80 overflow-hidden rounded-2xl border border-[color:var(--border)]">
+              <StoreMap stores={[mapStore]} focus={null} />
+            </div>
           </div>
         )}
       </section>
