@@ -24,8 +24,9 @@ const CONTROL_CLASS =
   "h-12 w-full rounded-2xl bg-white px-4 text-sm font-bold text-[color:var(--foreground)] shadow-lg outline-none";
 
 const RECRUITING_FILTER_OPTIONS = [
-  { value: "true", label: "募集中のみ" },
-  { value: "false", label: "募集なし・不明" },
+  { value: "募集中", label: "募集中" },
+  { value: "募集していない", label: "募集していない" },
+  { value: "不明", label: "不明" },
 ];
 
 export default function SearchFilters({
