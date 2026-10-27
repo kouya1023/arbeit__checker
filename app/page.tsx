@@ -59,7 +59,7 @@ async function loadStoreRows(): Promise<Store[]> {
     recruitingStatus:
       row.recruiting_status === null || row.recruiting_status === undefined
         ? null
-        : (row.recruiting_status as string),
+        : (row.recruiting_status as string).trim() || null,
   }));
 }
 
