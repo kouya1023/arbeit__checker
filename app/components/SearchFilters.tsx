@@ -3,8 +3,7 @@
 import type { FormEvent } from "react";
 import DropdownSelect from "./DropdownSelect";
 import IndustrySelect, { type Industry } from "./IndustrySelect";
-
-type Municipality = { id: number; name: string };
+import MunicipalitySelect, { type Municipality } from "./MunicipalitySelect";
 
 type Props = {
   search: string;
@@ -65,10 +64,10 @@ export default function SearchFilters({
         </form>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <DropdownSelect
+          <MunicipalitySelect
             value={filterMunicipalityId}
             onChange={onMunicipalityChange}
-            options={municipalities.map((m) => ({ value: String(m.id), label: m.name }))}
+            municipalities={municipalities}
             allLabel="すべての市町村"
             ariaLabel="市町村で絞り込み"
             triggerClassName={CONTROL_CLASS}
