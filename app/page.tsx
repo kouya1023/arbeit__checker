@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "./theme";
 import IndustrySelect, { type Industry } from "./components/IndustrySelect";
@@ -72,11 +72,14 @@ async function loadStoreRows(): Promise<Store[]> {
   }));
 }
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [search, setSearch] = useState("");
-  const [filterMunicipalityId, setFilterMunicipalityId] = useState("");
+  // 地図ページから戻ってきたとき、その絞り込みを引き継ぐ
+  const [filterMunicipalityId, setFilterMunicipalityId] = useState(
+    useSearchParams().get("municipality") ?? "",
+  );
   const [filterIndustryId, setFilterIndustryId] = useState("");
   const [filterRecruiting, setFilterRecruiting] = useState("");
   const [showWriteForm, setShowWriteForm] = useState(false);
@@ -436,6 +439,12 @@ export default function Home() {
             className="shrink-0"
           />
           <div className="flex items-center gap-2">
+            <Link
+              href={filterMunicipalityId ? `/map?municipality=${filterMunicipalityId}` : "/map"}
+              className="border border-white/30 text-white text-sm font-bold px-4 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+            >
+              マップから店を探す
+            </Link>
             <button
               onClick={() => setShowWriteForm(true)}
               className="bg-[color:var(--primary)] text-white text-sm font-bold px-4 py-1.5 rounded-full hover:opacity-90 transition-opacity"
@@ -853,5 +862,13 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
   );
 }
