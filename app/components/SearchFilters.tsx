@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import DropdownSelect from "./DropdownSelect";
 import IndustrySelect, { type Industry } from "./IndustrySelect";
 
@@ -9,7 +9,7 @@ type Municipality = { id: number; name: string };
 type Props = {
   search: string;
   onSearchChange: (value: string) => void;
-  onSearchSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSearchSubmit: (e: SubmitEvent<HTMLFormElement>) => void;
   municipalities: Municipality[];
   filterMunicipalityId: string;
   onMunicipalityChange: (value: string) => void;

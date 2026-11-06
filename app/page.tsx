@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type SubmitEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "./theme";
 import IndustrySelect, { type Industry } from "./components/IndustrySelect";
@@ -226,7 +226,7 @@ function HomeContent() {
     )
     .slice(0, 5);
 
-  function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleSearchSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
   }
 
@@ -286,7 +286,7 @@ function HomeContent() {
     setIsDepartmentInputFocused(false);
   }
 
-  async function handleWriteSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleWriteSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setShowRequiredErrors(true);
     const firstMissingField = [
