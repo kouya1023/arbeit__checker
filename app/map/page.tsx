@@ -18,41 +18,30 @@ const StoreMap = dynamic(() => import("./StoreMap"), {
 });
 
 async function loadMapStores(): Promise<{ stores: MapStore[]; failed: number }> {
-  const { data: reviews, error } = await supabase
-    .from("review")
-    .select("store_id, adress")
+  // 住所は店舗（store.adress）から取得する
+  const { data: storeRows, error } = await supabase
+    .from("store")
+    .select("id, name, munisipality_id, adress")
     .not("adress", "is", null);
   if (error) throw error;
 
-  // 店舗ごとに最初に見つかった住所を使う
-  const addressByStore = new Map<number, string>();
-  for (const r of reviews ?? []) {
-    const address = ((r.adress as string | null) ?? "").trim();
-    const storeId = Number(r.store_id);
-    if (address && !addressByStore.has(storeId)) addressByStore.set(storeId, address);
-  }
+  const withAddress = (storeRows ?? [])
+    .map((row) => ({
+      id: Number(row.id),
+      name: row.name as string,
+      municipalityId: row.munisipality_id == null ? null : Number(row.munisipality_id),
+      address: ((row.adress as string | null) ?? "").trim(),
+    }))
+    .filter((s) => s.address);
 
-  const { data: storeRows, error: storeError } = await supabase
-    .from("store")
-    .select("id, name, munisipality_id")
-    .in("id", [...addressByStore.keys()]);
-  if (storeError) throw storeError;
-
-  const points = await geocodeAddresses([...addressByStore.values()]);
+  const points = await geocodeAddresses(withAddress.map((s) => s.address));
 
   const stores: MapStore[] = [];
   let failed = 0;
-  for (const row of storeRows ?? []) {
-    const address = addressByStore.get(Number(row.id));
-    const point = address ? points.get(address) : undefined;
-    if (address && point) {
-      stores.push({
-        id: Number(row.id),
-        name: row.name as string,
-        municipalityId: row.munisipality_id == null ? null : Number(row.munisipality_id),
-        address,
-        ...point,
-      });
+  for (const s of withAddress) {
+    const point = points.get(s.address);
+    if (point) {
+      stores.push({ ...s, ...point });
     } else {
       failed++;
     }
