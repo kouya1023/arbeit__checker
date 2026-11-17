@@ -106,6 +106,8 @@ function HomeContent() {
   const [recruiting, setRecruiting] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobGap, setJobGap] = useState("");
+  const [goodPoints, setGoodPoints] = useState("");
+  const [badPoints, setBadPoints] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showRequiredErrors, setShowRequiredErrors] = useState(false);
@@ -200,9 +202,6 @@ function HomeContent() {
     store: !normalizedStoreName,
     industry: !industryId,
     rating: rating === 0,
-    numberOfPeople: !numberOfPeople,
-    recruiting: !recruiting,
-    jobGap: !jobGap.trim(),
   };
   const normalizedStoreSearchTerm = normalizeValueForSearch(storeName);
   const storesInMunicipality =
@@ -251,6 +250,8 @@ function HomeContent() {
     setRecruiting("");
     setJobDescription("");
     setJobGap("");
+    setGoodPoints("");
+    setBadPoints("");
     setSubmitError(null);
     setShowRequiredErrors(false);
   }
@@ -294,9 +295,6 @@ function HomeContent() {
       { id: "store-name", missing: missingRequiredFields.store },
       { id: "industry", missing: missingRequiredFields.industry },
       { id: "rating-1", missing: missingRequiredFields.rating },
-      { id: "number-of-people", missing: missingRequiredFields.numberOfPeople },
-      { id: "recruiting", missing: missingRequiredFields.recruiting },
-      { id: "job-gap", missing: missingRequiredFields.jobGap },
     ].find(({ missing }) => missing);
     if (firstMissingField) {
       setSubmitError(null);
@@ -374,32 +372,34 @@ function HomeContent() {
       }
     }
 
-    // 投稿内容に合わせて店舗の求人募集状況を更新（募集中/募集していない/不明）。
-    // 既存店舗で業種が未登録の場合のみ、選択した業種も店舗に登録する
-    const storeUpdate: { recruiting_status: string; type_of_industry_id?: number } = {
-      recruiting_status: recruiting,
-    };
+    // 未回答の募集状況で既存の店舗情報を上書きしない。
+    const storeUpdate: { recruiting_status?: string; type_of_industry_id?: number } = {};
+    if (recruiting) storeUpdate.recruiting_status = recruiting;
     if (existingStore !== undefined && existingStore.industryId === null) {
       storeUpdate.type_of_industry_id = Number(industryId);
     }
 
-    const { error: updateStoreError } = await supabase
-      .from("store")
-      .update(storeUpdate)
-      .eq("id", storeId);
+    if (Object.keys(storeUpdate).length > 0) {
+      const { error: updateStoreError } = await supabase
+        .from("store")
+        .update(storeUpdate)
+        .eq("id", storeId);
 
-    if (updateStoreError) {
-      setSubmitting(false);
-      setSubmitError(updateStoreError.message);
-      return;
+      if (updateStoreError) {
+        setSubmitting(false);
+        setSubmitError(updateStoreError.message);
+        return;
+      }
     }
 
     const { error } = await supabase.from("review").insert({
       store_id: storeId,
       stage_evaluation: rating,
-      number_of_people: numberOfPeople,
+      number_of_people: numberOfPeople || null,
       job_description: jobDescription || null,
-      job_gap: jobGap,
+      job_gap: jobGap.trim() || null,
+      good_points: goodPoints.trim() || null,
+      bad_points: badPoints.trim() || null,
       department_id: departmentId,
     });
 
@@ -690,6 +690,65 @@ function HomeContent() {
                     <p className="mt-2 text-xs text-red-600">業種の取得に失敗しました: {industryLoadError}</p>
                   )}
                 </div>
+                <div>
+                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">
+                    総合評価 <RequirementBadge required />
+                  </p>
+                  <div className="flex gap-2" role="group" aria-label="総合評価">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <button
+                        key={s}
+                        id={s === 1 ? "rating-1" : undefined}
+                        type="button"
+                        aria-label={`${s}つ星`}
+                        aria-pressed={rating === s}
+                        aria-describedby={s === 1 && showRequiredErrors && missingRequiredFields.rating ? "rating-error" : undefined}
+                        onClick={() => setRating(s)}
+                        className="text-2xl transition-colors"
+                        style={{ color: s <= rating ? "#ffce00" : "var(--border)" }}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  {showRequiredErrors && missingRequiredFields.rating && (
+                    <p id="rating-error" className="mt-1 text-xs font-medium text-red-600">
+                      総合評価を選択してください
+                    </p>
+                  )}
+                </div>
+                <div className="border-t border-[color:var(--border)] pt-4">
+                  <p className="text-sm font-bold">ここからは任意です</p>
+                  <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+                    書ける項目だけ入力してください。
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="good-points" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
+                    よかったこと <RequirementBadge required={false} />
+                  </label>
+                  <textarea
+                    id="good-points"
+                    rows={3}
+                    placeholder="働いてよかったと感じたこと"
+                    value={goodPoints}
+                    onChange={(e) => setGoodPoints(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="bad-points" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
+                    悪かったこと <RequirementBadge required={false} />
+                  </label>
+                  <textarea
+                    id="bad-points"
+                    rows={3}
+                    placeholder="気になったことや大変だったこと"
+                    value={badPoints}
+                    onChange={(e) => setBadPoints(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
+                  />
+                </div>
                 <div className="relative">
                   <label
                     htmlFor="department-name"
@@ -736,46 +795,17 @@ function HomeContent() {
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">
-                    総合評価 <RequirementBadge required />
-                  </p>
-                  <div className="flex gap-2" role="group" aria-label="総合評価">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <button
-                        key={s}
-                        id={s === 1 ? "rating-1" : undefined}
-                        type="button"
-                        aria-label={`${s}つ星`}
-                        aria-pressed={rating === s}
-                        aria-describedby={s === 1 && showRequiredErrors && missingRequiredFields.rating ? "rating-error" : undefined}
-                        onClick={() => setRating(s)}
-                        className="text-2xl transition-colors"
-                        style={{ color: s <= rating ? "#ffce00" : "var(--border)" }}
-                      >
-                        ★
-                      </button>
-                    ))}
-                  </div>
-                  {showRequiredErrors && missingRequiredFields.rating && (
-                    <p id="rating-error" className="mt-1 text-xs font-medium text-red-600">
-                      総合評価を選択してください
-                    </p>
-                  )}
-                </div>
-                <div>
                   <label htmlFor="number-of-people" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
-                    大学生バイトの人数 <RequirementBadge required />
+                    大学生バイトの人数 <RequirementBadge required={false} />
                   </label>
                   <select
                     id="number-of-people"
-                    aria-invalid={showRequiredErrors && missingRequiredFields.numberOfPeople}
-                    aria-describedby={showRequiredErrors && missingRequiredFields.numberOfPeople ? "number-of-people-error" : undefined}
                     value={numberOfPeople}
                     onChange={(e) => setNumberOfPeople(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)]"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
                   >
-                    <option value="" disabled>
-                      選択してください
+                    <option value="">
+                      選択しない
                     </option>
                     {NUMBER_OF_PEOPLE_OPTIONS.map((option) => (
                       <option key={option} value={option}>
@@ -783,26 +813,19 @@ function HomeContent() {
                       </option>
                     ))}
                   </select>
-                  {showRequiredErrors && missingRequiredFields.numberOfPeople && (
-                    <p id="number-of-people-error" className="mt-1 text-xs font-medium text-red-600">
-                      大学生バイトの人数を選択してください
-                    </p>
-                  )}
                 </div>
                 <div>
                   <label htmlFor="recruiting" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
-                    求人募集状況 <RequirementBadge required />
+                    求人募集状況 <RequirementBadge required={false} />
                   </label>
                   <select
                     id="recruiting"
-                    aria-invalid={showRequiredErrors && missingRequiredFields.recruiting}
-                    aria-describedby={showRequiredErrors && missingRequiredFields.recruiting ? "recruiting-error" : undefined}
                     value={recruiting}
                     onChange={(e) => setRecruiting(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)]"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
                   >
-                    <option value="" disabled>
-                      選択してください
+                    <option value="">
+                      選択しない
                     </option>
                     {RECRUITING_OPTIONS.map((option) => (
                       <option key={option} value={option}>
@@ -810,11 +833,6 @@ function HomeContent() {
                       </option>
                     ))}
                   </select>
-                  {showRequiredErrors && missingRequiredFields.recruiting && (
-                    <p id="recruiting-error" className="mt-1 text-xs font-medium text-red-600">
-                      求人募集状況を選択してください
-                    </p>
-                  )}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">
@@ -830,23 +848,16 @@ function HomeContent() {
                 </div>
                 <div>
                   <label htmlFor="job-gap" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
-                    求人情報とのギャップ <RequirementBadge required />
+                    求人情報とのギャップ <RequirementBadge required={false} />
                   </label>
                   <textarea
                     id="job-gap"
-                    aria-invalid={showRequiredErrors && missingRequiredFields.jobGap}
-                    aria-describedby={showRequiredErrors && missingRequiredFields.jobGap ? "job-gap-error" : undefined}
                     rows={3}
                     placeholder="求人サイトの情報と実際の業務で感じた違いを教えてください"
                     value={jobGap}
                     onChange={(e) => setJobGap(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)] resize-none"
+                    className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
                   />
-                  {showRequiredErrors && missingRequiredFields.jobGap && (
-                    <p id="job-gap-error" className="mt-1 text-xs font-medium text-red-600">
-                      求人情報とのギャップを入力してください
-                    </p>
-                  )}
                 </div>
                 {submitError && <p className="text-sm text-red-600">{submitError}</p>}
                 <button
