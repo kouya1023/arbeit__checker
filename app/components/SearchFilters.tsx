@@ -43,7 +43,7 @@ export default function SearchFilters({
   onRecruitingChange,
 }: Props) {
   return (
-    <section className="pb-10">
+    <section className="pb-5">
       <div className="mx-auto flex max-w-3xl flex-col gap-2 px-5">
         <form
           onSubmit={onSearchSubmit}
