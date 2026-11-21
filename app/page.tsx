@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type SubmitEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "./theme";
 import type { Industry } from "./components/IndustrySelect";
@@ -126,7 +126,7 @@ function HomeContent() {
       return aTop - bTop;
     });
 
-  function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleSearchSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
   }
 
