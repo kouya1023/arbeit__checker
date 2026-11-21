@@ -32,10 +32,10 @@ export default function StoreReviewListPage() {
       setLoading(true);
 
       const [storeResult, reviewResult] = await Promise.all([
-        supabase.from("store").select("name, munisipality_id").eq("id", storeId).maybeSingle(),
+        supabase.from("store").select("name, munisipality_id, adress").eq("id", storeId).maybeSingle(),
         supabase
           .from("review")
-          .select("id, stage_evaluation, number_of_people, created_at, adress")
+          .select("id, stage_evaluation, number_of_people, created_at")
           .eq("store_id", storeId),
       ]);
 
@@ -66,10 +66,8 @@ export default function StoreReviewListPage() {
       );
       setLoading(false);
 
-      // 口コミに登録された住所のうち最初のものを緯度経度に変換して地図に出す
-      const address = (reviewResult.data ?? [])
-        .map((row) => ((row.adress as string | null) ?? "").trim())
-        .find(Boolean);
+      // 店舗に登録された住所を緯度経度に変換して地図に出す
+      const address = ((storeResult.data?.adress as string | null) ?? "").trim();
       if (address && storeResult.data) {
         const point = (await geocodeAddresses([address])).get(address);
         if (point) {
