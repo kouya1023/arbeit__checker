@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { THEME, outfit } from "../theme";
 
@@ -17,7 +17,7 @@ export default function Signup() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
 

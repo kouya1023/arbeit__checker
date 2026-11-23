@@ -1,15 +1,14 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 import DropdownSelect from "./DropdownSelect";
 import IndustrySelect, { type Industry } from "./IndustrySelect";
-
-type Municipality = { id: number; name: string };
+import MunicipalitySelect, { type Municipality } from "./MunicipalitySelect";
 
 type Props = {
   search: string;
   onSearchChange: (value: string) => void;
-  onSearchSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSearchSubmit: (e: SubmitEvent<HTMLFormElement>) => void;
   municipalities: Municipality[];
   filterMunicipalityId: string;
   onMunicipalityChange: (value: string) => void;
@@ -43,7 +42,7 @@ export default function SearchFilters({
   onRecruitingChange,
 }: Props) {
   return (
-    <section className="pb-10">
+    <section className="pb-5">
       <div className="mx-auto flex max-w-3xl flex-col gap-2 px-5">
         <form
           onSubmit={onSearchSubmit}
@@ -65,10 +64,10 @@ export default function SearchFilters({
         </form>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <DropdownSelect
+          <MunicipalitySelect
             value={filterMunicipalityId}
             onChange={onMunicipalityChange}
-            options={municipalities.map((m) => ({ value: String(m.id), label: m.name }))}
+            municipalities={municipalities}
             allLabel="すべての市町村"
             ariaLabel="市町村で絞り込み"
             triggerClassName={CONTROL_CLASS}
