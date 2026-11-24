@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import IndustrySelect, { type Industry } from "./IndustrySelect";
 import type { Municipality, Store } from "../types";
+import { requestModeration } from "@/lib/moderation/client";
+import {
+  MODERATION_FIELD_LABELS,
+  MODERATION_MAX_CHARS,
+  type ModerationField,
+  type ModerationFields,
+  type ModerationIssue,
+} from "@/lib/moderation/types";
 
 type Department = { id: number; name: string };
 
@@ -63,6 +71,9 @@ export default function ReviewFormModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showRequiredErrors, setShowRequiredErrors] = useState(false);
+  const [moderating, setModerating] = useState(false);
+  const [moderationIssues, setModerationIssues] = useState<ModerationIssue[] | null>(null);
+  const moderationPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadDepartments() {
@@ -118,6 +129,9 @@ export default function ReviewFormModal({
       normalizeValueForSearch(department.name).includes(normalizedDepartmentSearchTerm),
     )
     .slice(0, 5);
+  const flaggedFields = new Set<ModerationField>(
+    (moderationIssues ?? []).flatMap((issue) => (issue.field ? [issue.field] : [])),
+  );
 
   function handleMunicipalityChange(value: string) {
     if (isIndustryLocked) setIndustryId("");
@@ -128,6 +142,7 @@ export default function ReviewFormModal({
 
   function handleStoreNameChange(value: string) {
     if (isIndustryLocked) setIndustryId("");
+    setModerationIssues(null);
     setStoreName(value);
     setSelectedStoreId(null);
   }
@@ -140,6 +155,7 @@ export default function ReviewFormModal({
   }
 
   function handleDepartmentNameChange(value: string) {
+    setModerationIssues(null);
     setDepartmentName(value);
     setSelectedDepartmentId(null);
   }
@@ -168,8 +184,44 @@ export default function ReviewFormModal({
       return;
     }
 
-    setSubmitting(true);
+    // 1) 入力文を検閲する（個人情報のマスキング → Gemini）。通らなければ DB には何も書かずに止める。
+    //    店舗名・部署名は、新しく登録されるときだけ対象にする（既存のものは公開済み）。
+    const willCreateStore =
+      selectedStoreId === null &&
+      !stores.some((store) => normalizeValueForSearch(store.name) === normalizedStoreSearchTerm);
+    const willCreateDepartment =
+      normalizedDepartmentName !== "" &&
+      selectedDepartmentId === null &&
+      !departments.some(
+        (department) => normalizeValueForSearch(department.name) === normalizedDepartmentSearchTerm,
+      );
+    const moderationInput: ModerationFields = {
+      ...(willCreateStore ? { storeName: normalizedStoreName } : {}),
+      ...(willCreateDepartment ? { departmentName: normalizedDepartmentName } : {}),
+      jobDescription,
+      jobGap,
+    };
+
     setSubmitError(null);
+    setModerationIssues(null);
+    setModerating(true);
+    const moderation = await requestModeration(moderationInput);
+    setModerating(false);
+
+    if (!moderation.ok) {
+      setSubmitError(moderation.message);
+      return;
+    }
+    if (!moderation.result.allowed) {
+      setModerationIssues(moderation.result.issues);
+      requestAnimationFrame(() =>
+        moderationPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      );
+      return;
+    }
+
+    // 2) 検閲を通ったら、そのまま投稿する
+    setSubmitting(true);
 
     let storeId = selectedStoreId;
     let existingStore = selectedStore;
@@ -343,7 +395,7 @@ export default function ReviewFormModal({
               <input
                 id="store-name"
                 type="text"
-                aria-invalid={showRequiredErrors && missingRequiredFields.store}
+                aria-invalid={(showRequiredErrors && missingRequiredFields.store) || flaggedFields.has("storeName")}
                 aria-describedby={showRequiredErrors && missingRequiredFields.store ? "store-name-error" : undefined}
                 placeholder={
                   municipalityId === ""
@@ -436,13 +488,14 @@ export default function ReviewFormModal({
               <input
                 id="department-name"
                 type="text"
+                aria-invalid={flaggedFields.has("departmentName")}
                 placeholder="例: キッチン、ホール"
                 value={departmentName}
                 onChange={(e) => handleDepartmentNameChange(e.target.value)}
                 onFocus={() => setIsDepartmentInputFocused(true)}
                 onBlur={() => setIsDepartmentInputFocused(false)}
                 autoComplete="off"
-                className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)]"
+                className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)]"
               />
               {isDepartmentInputFocused && normalizedDepartmentName && departmentSuggestions.length > 0 && (
                 <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[color:var(--border)] bg-white shadow-lg">
@@ -558,10 +611,15 @@ export default function ReviewFormModal({
               </p>
               <textarea
                 rows={3}
+                maxLength={MODERATION_MAX_CHARS}
+                aria-invalid={flaggedFields.has("jobDescription")}
                 placeholder="実際に担当した業務内容を教えてください"
                 value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] transition-colors bg-[color:var(--background)] resize-none"
+                onChange={(e) => {
+                  setJobDescription(e.target.value);
+                  setModerationIssues(null);
+                }}
+                className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)] resize-none"
               />
             </div>
             <div>
@@ -570,12 +628,16 @@ export default function ReviewFormModal({
               </label>
               <textarea
                 id="job-gap"
-                aria-invalid={showRequiredErrors && missingRequiredFields.jobGap}
+                maxLength={MODERATION_MAX_CHARS}
+                aria-invalid={(showRequiredErrors && missingRequiredFields.jobGap) || flaggedFields.has("jobGap")}
                 aria-describedby={showRequiredErrors && missingRequiredFields.jobGap ? "job-gap-error" : undefined}
                 rows={3}
                 placeholder="求人サイトの情報と実際の業務で感じた違いを教えてください"
                 value={jobGap}
-                onChange={(e) => setJobGap(e.target.value)}
+                onChange={(e) => {
+                  setJobGap(e.target.value);
+                  setModerationIssues(null);
+                }}
                 className="w-full px-4 py-3 rounded-xl border border-[color:var(--border)] text-sm font-medium outline-none focus:border-[color:var(--primary)] aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:border-red-500 transition-colors bg-[color:var(--background)] resize-none"
               />
               {showRequiredErrors && missingRequiredFields.jobGap && (
@@ -584,13 +646,38 @@ export default function ReviewFormModal({
                 </p>
               )}
             </div>
+            {moderationIssues && (
+              <div
+                ref={moderationPanelRef}
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800"
+              >
+                <p className="text-sm font-bold">投稿内容が検閲を通過しませんでした</p>
+                <p className="mt-1 text-xs">
+                  該当箇所を修正してから、もう一度「投稿する」を押してください。
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {moderationIssues.map((issue, index) => (
+                    <li key={index} className="rounded-lg bg-white/70 p-3">
+                      <p className="text-xs font-bold text-red-700">
+                        {issue.field ? MODERATION_FIELD_LABELS[issue.field] : "投稿内容全体"}
+                      </p>
+                      {issue.excerpt && (
+                        <p className="mt-1 break-words text-sm font-medium">「{issue.excerpt}」</p>
+                      )}
+                      <p className="mt-1 text-xs">{issue.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {submitError && <p className="text-sm text-red-600">{submitError}</p>}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={moderating || submitting}
               className="w-full bg-[color:var(--primary)] text-white font-black py-3.5 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60"
             >
-              {submitting ? "投稿中..." : "投稿する"}
+              {moderating ? "検閲中..." : submitting ? "投稿中..." : "投稿する"}
             </button>
           </div>
         </form>
