@@ -15,6 +15,8 @@ type ReviewDetail = {
   departmentName: string | null;
   jobDescription: string;
   jobGap: string;
+  goodPoints: string;
+  badPoints: string;
 };
 
 export default function ReviewDetailPage() {
@@ -30,7 +32,7 @@ export default function ReviewDetailPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from("review")
-        .select("stage_evaluation, number_of_people, department_id, job_description, job_gap, created_at")
+        .select("stage_evaluation, number_of_people, department_id, job_description, job_gap, good_points, bad_points, created_at")
         .eq("id", reviewId)
         .single();
 
@@ -64,6 +66,8 @@ export default function ReviewDetailPage() {
         departmentName,
         jobDescription: (data.job_description as string) ?? "",
         jobGap: (data.job_gap as string) ?? "",
+        goodPoints: (data.good_points as string) ?? "",
+        badPoints: (data.bad_points as string) ?? "",
       });
       setLoading(false);
     }
@@ -116,6 +120,18 @@ export default function ReviewDetailPage() {
               <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">部署</p>
               <p className="font-medium">{review.departmentName ?? "部署情報なし"}</p>
             </div>
+            {review.goodPoints && (
+              <div>
+                <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">よかったこと</p>
+                <p className="leading-relaxed whitespace-pre-wrap">{review.goodPoints}</p>
+              </div>
+            )}
+            {review.badPoints && (
+              <div>
+                <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">悪かったこと</p>
+                <p className="leading-relaxed whitespace-pre-wrap">{review.badPoints}</p>
+              </div>
+            )}
             <div>
               <p className="text-xs font-bold text-[color:var(--muted-foreground)] mb-2">業務内容</p>
               <p className="leading-relaxed whitespace-pre-wrap">{review.jobDescription || "記載なし"}</p>
