@@ -505,7 +505,7 @@ export default function ReviewFormModal({
             </div>
             <div>
               <label htmlFor="good-points" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
-                よかったこと <RequirementBadge required={false} />
+                よかったところ <RequirementBadge required={false} />
               </label>
               <textarea
                 id="good-points"
@@ -518,7 +518,7 @@ export default function ReviewFormModal({
             </div>
             <div>
               <label htmlFor="bad-points" className="mb-2 block text-xs font-bold text-[color:var(--muted-foreground)]">
-                悪かったこと <RequirementBadge required={false} />
+                良くなかったところ <RequirementBadge required={false} />
               </label>
               <textarea
                 id="bad-points"
